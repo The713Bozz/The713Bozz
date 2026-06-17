@@ -28,13 +28,13 @@ from src.strategy.watchlist import get_scan_list
 
 def cmd_status(account_value: float) -> None:
     progress = challenge_progress(account_value)
-    phase_label = "Phase 1: Challenge ($50→$500)" if progress["phase"] == 1 else "Phase 2: Compounding"
     print(f"\n{'='*50}")
     print(f"  The713Bozz Trading System")
-    print(f"  {phase_label}")
+    print(f"  {progress['mode']}")
     print(f"{'='*50}")
     print(f"  Account Value    : ${progress['account_value']:.2f}")
     print(f"  Progress         : {progress['progress_pct']}% ({progress['multiplier']}x)")
+    print(f"  Strategy         : {progress['strategy']}")
     print(f"  Total Trades     : {progress['total_trades']}")
     print(f"  Win Rate         : {progress['win_rate']}")
     print(f"  Consecutive Loss : {progress['consecutive_losses']}")

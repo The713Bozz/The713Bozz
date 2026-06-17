@@ -30,7 +30,8 @@ def get_phase(account_value: float) -> int:
 
 
 def max_risk_pct(account_value: float) -> float:
-    return 0.20 if get_phase(account_value) == 1 else 0.10
+    # Same aggressive strategy in both phases — compound indefinitely until user stops.
+    return 0.20
 
 
 def position_size(account_value: float) -> float:
@@ -83,10 +84,10 @@ def record_trade_result(won: bool, account_value: float) -> None:
         if state["consecutive_losses"] >= cfg["risk"]["circuit_breaker_consecutive_losses"]:
             state["circuit_breaker_halted"] = True
 
-    phase = get_phase(account_value)
-    if phase == 2 and cfg["challenge"]["phase"] == 1:
+    if get_phase(account_value) == 2 and cfg["challenge"]["phase"] == 1:
         cfg["challenge"]["phase"] = 2
         cfg["challenge"]["completed_at"] = datetime.utcnow().isoformat()
+        # Strategy continues unchanged — same risk, same style, indefinitely.
 
     save_state(cfg)
 
@@ -127,8 +128,10 @@ def challenge_progress(account_value: float) -> dict:
     target = cfg["challenge"]["phase1_target"]
     phase = get_phase(account_value)
     pct = ((account_value - start) / (target - start)) * 100 if phase == 1 else 100.0
+    mode = "Challenge ($50→$500)" if phase == 1 else "Compounding — running until stopped"
     return {
         "phase": phase,
+        "mode": mode,
         "account_value": account_value,
         "start": start,
         "target": target,
@@ -138,4 +141,5 @@ def challenge_progress(account_value: float) -> dict:
         "win_rate": f"{win_rate():.0%}",
         "consecutive_losses": cfg["state"]["consecutive_losses"],
         "circuit_breaker_halted": cfg["state"]["circuit_breaker_halted"],
+        "strategy": "Momentum Compounder (same style, no change after $500)",
     }

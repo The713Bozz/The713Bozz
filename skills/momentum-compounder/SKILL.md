@@ -21,7 +21,7 @@ version: "1.0.0"
 
 ## Phase Logic
 
-### Phase 1: $50 → $500 (Aggressive Compounding)
+### Phase 1: $50 → $500 (Challenge)
 - Max risk per trade: **20% of account**
 - Min R:R: **2:1** (prefer 3:1 or better)
 - Instruments: cheap OTM calls/puts ($0.05–$0.30/contract), fractional shares
@@ -29,13 +29,11 @@ version: "1.0.0"
 - Stop: exit option at **-50%** of entry price
 - Target: exit at **+100% to +400%** of entry price
 
-### Phase 2: $500+ (Compound Growth Mode)
-- Max risk per trade: **10% of account**
-- Min R:R: **3:1**
-- Instruments: defined-risk options, quality momentum equities
-- Setups: same signals, higher bar for entry quality
-- Stop: exit at **-30%** of entry price
-- Target: exit at **+90%+** or trail with stop
+### Phase 2: $500+ (Indefinite Compounding — same strategy, no change)
+- **Identical rules to Phase 1.** Same risk %, same instruments, same signal stack.
+- The only difference: the `mode` label in status changes to "Compounding."
+- System keeps running and growing the account until the user explicitly stops it.
+- As the account grows, position sizes scale up automatically (20% of a larger account = bigger dollars, same discipline).
 
 ## Signal Stack (all must align)
 
