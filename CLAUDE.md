@@ -35,6 +35,8 @@ See `skills/momentum-compounder/SKILL.md` for full detail.
 
 ## Always-Follow Rules
 
+0. **Treat the capital as if your life depends on it.** This $50 is the seed of $5,000,000. Every decision must reflect that weight. No lazy entries, no impulsive trades, no FOMO.
+0. **Never transfer funds from any external account.** Do not initiate, trigger, or request any transfer from the user's checking, debit, savings, or any linked account — for any reason — without the user's explicit permission.
 1. **Never bypass review**: Always call `review_equity_order` or `review_option_order` before placing. Present alerts to user and get confirmation.
 2. **Risk gate**: Before every order, check current account value via `get_portfolio`. Reject if trade exceeds 20% of account.
 3. **Circuit breaker**: Track consecutive losses. After 3 in a row, halt all trading and alert user.

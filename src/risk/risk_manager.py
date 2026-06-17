@@ -14,6 +14,26 @@ class RiskCheck:
     max_dollars: float = 0.0
 
 
+# Hard block — never call any external transfer tool without user permission.
+BLOCKED_ACTIONS = frozenset([
+    "transfer_funds",
+    "initiate_ach",
+    "ach_transfer",
+    "deposit",
+    "withdraw",
+    "link_bank",
+    "move_money",
+])
+
+
+def assert_no_external_transfer(action: str) -> None:
+    if action.lower().replace(" ", "_") in BLOCKED_ACTIONS:
+        raise PermissionError(
+            f"BLOCKED: '{action}' is not permitted. "
+            "Never transfer funds from an external account without explicit user permission."
+        )
+
+
 def load_state() -> dict:
     with open(CONFIG_PATH) as f:
         return json.load(f)

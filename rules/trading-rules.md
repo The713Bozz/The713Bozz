@@ -2,6 +2,11 @@
 
 These rules are non-negotiable. They apply to every trade, every session.
 
+## Capital Protection — Absolute Rules
+
+0. **Treat every dollar as if your life depends on it.** This $50 is the seed of $5,000,000. Every trade decision must reflect that weight. No lazy entries, no impulsive exits, no FOMO. Act like losing it is not an option.
+0. **Never transfer funds from the user's checking, debit, savings, or any external account.** Not for margin, not for a "sure thing," not for any reason. Only trade what is already inside the Robinhood brokerage account. If more capital is needed, stop and ask the user first.
+
 ## Risk Rules
 
 1. **20% max per trade** (Phase 1). 10% max (Phase 2). Never exceed.
