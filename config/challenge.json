@@ -11,8 +11,8 @@
   "account": {
     "agentic_account_number": "831875489",
     "agentic_allowed": true,
-    "option_level": "",
-    "options_enabled": false
+    "option_level": "option_level_2",
+    "options_enabled": true
   },
   "risk": {
     "max_risk_per_trade_pct": 0.20,
