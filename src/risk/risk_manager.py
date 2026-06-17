@@ -84,10 +84,14 @@ def record_trade_result(won: bool, account_value: float) -> None:
         if state["consecutive_losses"] >= cfg["risk"]["circuit_breaker_consecutive_losses"]:
             state["circuit_breaker_halted"] = True
 
+    now = datetime.utcnow().isoformat()
     if get_phase(account_value) == 2 and cfg["challenge"]["phase"] == 1:
         cfg["challenge"]["phase"] = 2
-        cfg["challenge"]["completed_at"] = datetime.utcnow().isoformat()
-        # Strategy continues unchanged — same risk, same style, indefinitely.
+        cfg["challenge"]["completed_at"] = now
+
+    ultimate = cfg["challenge"].get("ultimate_target", 5_000_000)
+    if account_value >= ultimate and not cfg["challenge"].get("ultimate_completed_at"):
+        cfg["challenge"]["ultimate_completed_at"] = now
 
     save_state(cfg)
 
@@ -125,21 +129,29 @@ def win_rate() -> float:
 def challenge_progress(account_value: float) -> dict:
     cfg = load_state()
     start = cfg["challenge"]["start_balance"]
-    target = cfg["challenge"]["phase1_target"]
+    phase1_target = cfg["challenge"]["phase1_target"]
+    ultimate = cfg["challenge"].get("ultimate_target", 5_000_000)
     phase = get_phase(account_value)
-    pct = ((account_value - start) / (target - start)) * 100 if phase == 1 else 100.0
-    mode = "Challenge ($50→$500)" if phase == 1 else "Compounding — running until stopped"
+
+    if phase == 1:
+        pct = ((account_value - start) / (phase1_target - start)) * 100
+        mode = "Phase 1: Challenge ($50 → $500)"
+    else:
+        pct = (account_value / ultimate) * 100
+        mode = "Phase 2: Compounding ($500 → $5,000,000)"
+
+    remaining = max(0.0, ultimate - account_value)
     return {
         "phase": phase,
         "mode": mode,
         "account_value": account_value,
-        "start": start,
-        "target": target,
-        "progress_pct": round(min(pct, 100.0), 1),
+        "ultimate_target": ultimate,
+        "remaining_to_goal": remaining,
+        "progress_pct": round(min(pct, 100.0), 2),
         "multiplier": round(account_value / start, 2),
         "total_trades": cfg["state"]["total_trades"],
         "win_rate": f"{win_rate():.0%}",
         "consecutive_losses": cfg["state"]["consecutive_losses"],
         "circuit_breaker_halted": cfg["state"]["circuit_breaker_halted"],
-        "strategy": "Momentum Compounder (same style, no change after $500)",
+        "strategy": "Momentum Compounder — same style all the way to $5M",
     }

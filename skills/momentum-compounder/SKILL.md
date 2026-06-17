@@ -29,11 +29,12 @@ version: "1.0.0"
 - Stop: exit option at **-50%** of entry price
 - Target: exit at **+100% to +400%** of entry price
 
-### Phase 2: $500+ (Indefinite Compounding — same strategy, no change)
+### Phase 2: $500 → $5,000,000 (Compounding — same strategy, no change)
 - **Identical rules to Phase 1.** Same risk %, same instruments, same signal stack.
-- The only difference: the `mode` label in status changes to "Compounding."
-- System keeps running and growing the account until the user explicitly stops it.
-- As the account grows, position sizes scale up automatically (20% of a larger account = bigger dollars, same discipline).
+- The only change: mode label updates to "Phase 2: Compounding ($500 → $5,000,000)."
+- System runs until account reaches $5,000,000 or user explicitly stops it.
+- Position sizes scale automatically — 20% of a growing account means bigger dollars with the same discipline.
+- $5M milestone is logged in `config/challenge.json` as `ultimate_completed_at`.
 
 ## Signal Stack (all must align)
 

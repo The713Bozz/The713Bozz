@@ -19,8 +19,9 @@ This is an autonomous Robinhood trading system targeting a $50 → $500 challeng
 |-----------|-------|
 | Starting capital | $50.00 |
 | Phase 1 target | $500.00 (10x) |
-| Phase 2 | Same strategy, compound indefinitely until user says stop |
-| Max risk per trade | 20% of current account (both phases) |
+| Ultimate target | $5,000,000.00 |
+| Phase 2 | Same strategy, compound until $5M or user says stop |
+| Max risk per trade | 20% of current account (all phases) |
 | Max daily drawdown | 30% of current account |
 | Circuit breaker | Halt if 3 consecutive losses |
 | Min R:R ratio | 2:1 |

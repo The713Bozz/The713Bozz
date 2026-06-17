@@ -28,18 +28,20 @@ from src.strategy.watchlist import get_scan_list
 
 def cmd_status(account_value: float) -> None:
     progress = challenge_progress(account_value)
-    print(f"\n{'='*50}")
+    print(f"\n{'='*54}")
     print(f"  The713Bozz Trading System")
     print(f"  {progress['mode']}")
-    print(f"{'='*50}")
-    print(f"  Account Value    : ${progress['account_value']:.2f}")
-    print(f"  Progress         : {progress['progress_pct']}% ({progress['multiplier']}x)")
+    print(f"{'='*54}")
+    print(f"  Account Value    : ${progress['account_value']:>14,.2f}")
+    print(f"  Ultimate Goal    : ${progress['ultimate_target']:>14,.2f}")
+    print(f"  Remaining        : ${progress['remaining_to_goal']:>14,.2f}")
+    print(f"  Progress         : {progress['progress_pct']}%  ({progress['multiplier']}x from start)")
     print(f"  Strategy         : {progress['strategy']}")
     print(f"  Total Trades     : {progress['total_trades']}")
     print(f"  Win Rate         : {progress['win_rate']}")
     print(f"  Consecutive Loss : {progress['consecutive_losses']}")
     print(f"  Circuit Breaker  : {'HALTED' if progress['circuit_breaker_halted'] else 'OK'}")
-    print(f"{'='*50}\n")
+    print(f"{'='*54}\n")
 
 
 def cmd_scan(account_value: float) -> None:

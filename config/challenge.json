@@ -2,9 +2,11 @@
   "challenge": {
     "start_balance": 50.00,
     "phase1_target": 500.00,
+    "ultimate_target": 5000000.00,
     "phase": 1,
     "started_at": null,
-    "completed_at": null
+    "completed_at": null,
+    "ultimate_completed_at": null
   },
   "risk": {
     "max_risk_per_trade_pct": 0.20,
