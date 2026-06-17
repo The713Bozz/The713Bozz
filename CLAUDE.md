@@ -55,6 +55,18 @@ See `skills/momentum-compounder/SKILL.md` for full detail.
 - `agents/market-analyst.md` — Market analysis subagent
 - `hooks/pre-order-guard.json` — Pre-order safety hook
 
+## Skill Pack
+
+| Skill | When to invoke |
+|-------|---------------|
+| `momentum-compounder` | Core trading skill — every trade |
+| `prediction-market-oracle-research` | Before entry — get macro/event odds as 5th signal |
+| `prediction-market-risk-review` | Before any order — safety gate |
+| `ito-market-intelligence` | Event discovery — what is the market pricing? |
+| `ito-basket-compare` | Gap analysis — do prediction odds conflict with watchlist? |
+| `ito-trade-planner` | Pre-trade worksheet — structure the setup before ordering |
+| `ito-data-atlas-agent` | Full pipeline — background scan → draft → review → human approval |
+
 ## Running the System
 
 ```bash
