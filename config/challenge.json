@@ -4,9 +4,15 @@
     "phase1_target": 500.00,
     "ultimate_target": 5000000.00,
     "phase": 1,
-    "started_at": null,
+    "started_at": "2026-06-17T00:00:00Z",
     "completed_at": null,
     "ultimate_completed_at": null
+  },
+  "account": {
+    "agentic_account_number": "831875489",
+    "agentic_allowed": true,
+    "option_level": "",
+    "options_enabled": false
   },
   "risk": {
     "max_risk_per_trade_pct": 0.20,
