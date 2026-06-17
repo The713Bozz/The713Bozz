@@ -1,0 +1,40 @@
+{
+  "challenge": {
+    "start_balance": 50.00,
+    "phase1_target": 500.00,
+    "phase": 1,
+    "started_at": null,
+    "completed_at": null
+  },
+  "risk": {
+    "max_risk_per_trade_pct": 0.20,
+    "max_daily_drawdown_pct": 0.30,
+    "circuit_breaker_consecutive_losses": 3,
+    "min_rr_ratio": 2.0,
+    "max_option_price_per_contract": 0.30,
+    "max_single_equity_pct": 0.20
+  },
+  "pdt": {
+    "day_trades_used": 0,
+    "rolling_window_start": null,
+    "halt_if_pdt_risk": true
+  },
+  "state": {
+    "consecutive_losses": 0,
+    "day_open_value": null,
+    "daily_halted": false,
+    "circuit_breaker_halted": false,
+    "total_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0
+  },
+  "instruments": {
+    "prefer_options": true,
+    "allow_equities": true,
+    "allow_fractional": true,
+    "option_dte_min": 7,
+    "option_dte_max": 45,
+    "option_delta_min": 0.20,
+    "option_delta_max": 0.45
+  }
+}
