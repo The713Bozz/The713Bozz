@@ -20,6 +20,8 @@
     "circuit_breaker_consecutive_losses": 3,
     "min_rr_ratio": 2.0,
     "max_option_price_per_contract": 0.30,
+    "min_option_ask": 0.10,
+    "min_bid_ask_ratio": 0.60,
     "max_single_equity_pct": 0.20
   },
   "pdt": {
@@ -41,6 +43,7 @@
     "allow_equities": true,
     "allow_fractional": true,
     "option_dte_min": 7,
+    "option_dte_min_pdt_pressure": 14,
     "option_dte_max": 45,
     "option_delta_min": 0.20,
     "option_delta_max": 0.45

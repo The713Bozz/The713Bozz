@@ -64,6 +64,98 @@ def option_contracts(account_value: float, option_price: float) -> int:
     return max(1, min(contracts, 5))
 
 
+def check_option_liquidity(bid: float, ask: float) -> RiskCheck:
+    """
+    Reject options where the bid/ask spread would put you near or past the
+    -50% hard stop the instant the buy order fills.
+
+    Minimum ask $0.10: sub-dime contracts have nearly 100% proportional spreads.
+    Minimum bid/ask ratio 0.60: buying at ask with bid at 60% of ask means
+    you are immediately 40% down on paper — survivable. Below 0.60 you are
+    already inside the stop zone at fill.
+    """
+    cfg = load_state()
+    min_ask = cfg["risk"].get("min_option_ask", 0.10)
+    min_ratio = cfg["risk"].get("min_bid_ask_ratio", 0.60)
+
+    if ask <= 0:
+        return RiskCheck(False, "Invalid option ask price (zero or negative).")
+
+    if ask < min_ask:
+        return RiskCheck(
+            False,
+            f"Option ask ${ask:.2f} is below the ${min_ask:.2f} floor. "
+            "Sub-dime contracts have lethal spreads — skip this contract.",
+        )
+
+    ratio = bid / ask
+    if ratio < min_ratio:
+        immediate_loss = (ask - bid) / ask
+        return RiskCheck(
+            False,
+            f"Spread too wide: bid/ask ratio {ratio:.0%} < {min_ratio:.0%} minimum. "
+            f"Filling at ${ask:.2f} with bid ${bid:.2f} puts you {immediate_loss:.0%} down instantly — "
+            "this fires the -50% stop before the trade has a chance to work.",
+        )
+
+    return RiskCheck(True, f"Liquidity OK — bid/ask ratio {ratio:.0%} ≥ {min_ratio:.0%}.")
+
+
+def entry_mid_stop(ask: float, bid: float, stop_pct: float = 0.50) -> dict:
+    """
+    Anchor the hard stop to the mid price at entry, not the ask fill.
+
+    Buying at the ask when the bid is lower means the position's liquidation
+    value at fill is already below ask. The -50% stop must be measured from
+    the mid so it reflects real value, not the inflated fill price.
+
+    Returns a dict with stop_price, the effective loss-from-ask, and a note
+    suitable for logging and the pre-trade worksheet.
+    """
+    mid = (ask + bid) / 2.0
+    stop_price = mid * (1.0 - stop_pct)
+    loss_from_ask = (stop_price - ask) / ask
+    return {
+        "entry_ask": round(ask, 4),
+        "entry_bid": round(bid, 4),
+        "entry_mid": round(mid, 4),
+        "stop_price": round(stop_price, 4),
+        "stop_pct_from_ask": round(loss_from_ask, 4),
+        "note": (
+            f"Stop ${stop_price:.4f} = mid ${mid:.4f} × (1 − {stop_pct:.0%}). "
+            f"From ask fill that is {loss_from_ask:.1%} — not {-stop_pct:.0%}."
+        ),
+    }
+
+
+def required_dte(pdt_trades_used: int, weekday: int = -1) -> int:
+    """
+    Return the minimum DTE required given current PDT usage and day of week.
+
+    Normal minimum: 7 DTE (from config).
+    PDT-pressure minimum: 14 DTE — applied when PDT day trades used ≥ 2 AND
+    it is Thursday or Friday (weekday 3 or 4). This prevents being forced to
+    hold a 7-DTE option over the weekend with no legal same-day exit, where a
+    Monday gap can blow straight through the -50% stop without triggering it.
+
+    weekday: 0=Monday … 4=Friday. Pass -1 (default) to use today's UTC weekday.
+    """
+    cfg = load_state()
+    base_dte = cfg["instruments"].get("option_dte_min", 7)
+    pressure_dte = cfg["instruments"].get("option_dte_min_pdt_pressure", 14)
+
+    if weekday == -1:
+        weekday = datetime.utcnow().weekday()
+
+    is_late_week = weekday >= 3  # Thursday or Friday
+    pdt_near_limit = pdt_trades_used >= 2
+
+    if is_late_week and pdt_near_limit:
+        return pressure_dte
+
+    return base_dte
+
+
 def check_trade_allowed(account_value: float) -> RiskCheck:
     cfg = load_state()
     state = cfg["state"]
