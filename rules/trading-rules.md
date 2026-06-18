@@ -15,6 +15,12 @@ These rules are non-negotiable. They apply to every trade, every session.
 4. **No averaging down.** Ever. If a position is losing, wait for the stop or exit.
 5. **Max 2 open positions** at any time.
 
+## Autonomous Scan Rules
+
+6a. **Scan at 9:30 AM ET every market day — no permission needed.** Pull quotes on all 20 watchlist symbols, score signals, report top candidates and the market context (SPY/QQQ direction).
+6b. **Pre-market scan at 9:00 AM ET — no permission needed.** Flag any symbol up >3% pre-market as a priority setup for open.
+6c. **Scanning is never a trade.** Autonomous scans report findings only. No order is placed without explicit user confirmation.
+
 ## Process Rules
 
 6. **Always review before placing.** Call `review_equity_order` or `review_option_order`. Read every alert. Confirm with user.

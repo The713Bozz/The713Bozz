@@ -33,6 +33,19 @@ See `skills/momentum-compounder/SKILL.md` for full detail.
 
 **Summary**: Identify stocks with high relative strength, volume surges, and clear technical setups. Enter cheap options (< $0.30/contract) or fractional shares on breakouts. Cut losses at 50% of position. Let winners run to 2x–5x.
 
+## Autonomous Behaviors (No Permission Required)
+
+These actions happen automatically — no user prompt needed:
+
+| Trigger | Action |
+|---------|--------|
+| Market open (9:30 AM ET, Mon–Fri) | Scan all 20 watchlist symbols, score signals, report top candidates |
+| Pre-market (9:00–9:30 AM ET) | Pull pre-market quotes, flag any gap-ups >3% for priority review |
+| New session start | Check portfolio value, reset daily state, scan if market is open |
+| Position held overnight | Check quote at open, flag if stop loss level is breached |
+
+**Scanning never requires permission. Placing an order always requires user confirmation.**
+
 ## Always-Follow Rules
 
 0. **Treat the capital as if your life depends on it.** This $50 is the seed of $5,000,000. Every decision must reflect that weight. No lazy entries, no impulsive trades, no FOMO.
