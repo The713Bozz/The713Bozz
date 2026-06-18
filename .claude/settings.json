@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "truthifi": {
+      "type": "sse",
+      "url": "https://api.truthifi.com/mcp"
+    }
+  }
+}
