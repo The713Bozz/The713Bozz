@@ -2,6 +2,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
+try:
+    from src.data import finnhub as _finnhub
+    from src.data import coingecko as _coingecko
+    _DATA_AVAILABLE = True
+except ImportError:
+    _DATA_AVAILABLE = False
+
 
 @dataclass
 class CatalystResult:
@@ -76,9 +83,8 @@ _SOFT_FLAGS = [
 
 def check_news_text(symbol: str, news_text: str) -> CatalystResult:
     """
-    Evaluate pre-fetched news headlines/summary for red flags.
-    The agent fetches the text via WebFetch; this function scores it.
-    Returns clear=False on hard blocks (auto-skip) or soft flags (user review).
+    Evaluate headlines text for red flags.
+    news_text can come from Finnhub (preferred) or raw WebFetch fallback.
     """
     text = news_text.lower()
 
@@ -97,3 +103,34 @@ def check_news_text(symbol: str, news_text: str) -> CatalystResult:
         )
 
     return CatalystResult(symbol, True, "clear", "No negative catalyst in headlines.")
+
+
+def full_catalyst_check(symbol: str, today: Optional[date] = None) -> CatalystResult:
+    """
+    Full automated catalyst check using live APIs (no WebFetch needed).
+    Order: BTC gate → earnings window → news scan.
+    Falls back gracefully if any API is unavailable.
+    """
+    if not _DATA_AVAILABLE:
+        return CatalystResult(symbol, True, "clear", "Data modules unavailable — manual catalyst check required.")
+
+    # 1. BTC gate for crypto miners
+    btc = _coingecko.btc_gate(symbol)
+    if not btc["allowed"]:
+        return CatalystResult(symbol, False, "btc_gate", btc["reason"])
+
+    # 2. Earnings window check
+    dates = _finnhub.earnings_dates(symbol, days_forward=7)
+    earnings_result = check_earnings_window(symbol, dates, today=today)
+    if not earnings_result.clear:
+        return earnings_result
+
+    # 3. News scan via Finnhub
+    headlines = _finnhub.news_headlines_text(symbol, days_back=3)
+    if headlines:
+        news_result = check_news_text(symbol, headlines)
+        if not news_result.clear:
+            return news_result
+
+    btc_note = f" BTC {btc['btc_change']:+.1%}." if btc.get("btc_change") is not None else ""
+    return CatalystResult(symbol, True, "clear", f"All catalyst checks passed.{btc_note}")
