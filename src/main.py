@@ -23,6 +23,8 @@ from src.risk.risk_manager import (
     reset_circuit_breaker,
     reset_daily,
 )
+from src.signals.learning import learning_report
+from src.signals.regime import RegimeResult
 from src.strategy.watchlist import get_scan_list
 
 
@@ -44,19 +46,28 @@ def cmd_status(account_value: float) -> None:
     print(f"{'='*54}\n")
 
 
-def cmd_scan(account_value: float) -> None:
+def cmd_scan(account_value: float, regime: RegimeResult | None = None) -> None:
     check = check_trade_allowed(account_value)
     if not check.allowed:
         print(f"\n[BLOCKED] {check.reason}\n")
         return
 
+    if regime is not None:
+        tag = "OK" if regime.trade_allowed else "HALT"
+        print(f"\n[REGIME:{tag}] {regime.regime.upper()} — {regime.detail}")
+        if not regime.trade_allowed:
+            print("No new entries until regime shifts. Monitoring existing positions only.\n")
+            return
+
     symbols = get_scan_list(account_value)
     print(f"\nScanning {len(symbols)} symbols for momentum setups...")
-    print("Max position size:", f"${check.max_dollars:.2f}")
-    print("\nSymbols:", ", ".join(symbols))
-    print("\nTo get live signal scores, use the market-analyst agent:")
-    print("  Invoke via Claude Code with: /market-analyst")
-    print("  Pass: account_value, consecutive_losses, watchlist\n")
+    print(f"Max position size: ${check.max_dollars:.2f}")
+    if account_value < 150:
+        cfg = load_state()
+        max_contract = account_value * cfg["risk"]["max_option_contract_cost_pct"]
+        print(f"Max contract cost: ${max_contract:.2f}  (${max_contract/100:.2f}/share options)")
+    print("\nSymbols (Tier 2 first — cheap options priority):", ", ".join(symbols))
+    print("\nLive scan runs via agent MCP calls — invoke from Claude Code session.\n")
 
 
 def cmd_risk_check(account_value: float) -> None:
@@ -74,6 +85,7 @@ def main():
     parser.add_argument("--risk-check", action="store_true", help="Check if trading is allowed")
     parser.add_argument("--reset-circuit-breaker", action="store_true")
     parser.add_argument("--reset-daily", metavar="ACCOUNT_VALUE", type=float)
+    parser.add_argument("--learn", action="store_true", help="Show win-rate learning report from trade log")
     parser.add_argument("--account-value", type=float, default=50.0, help="Current account value in USD")
 
     args = parser.parse_args()
@@ -81,8 +93,11 @@ def main():
 
     if args.status:
         cmd_status(account_value)
+        print(learning_report())
     elif args.scan:
         cmd_scan(account_value)
+    elif args.learn:
+        print(learning_report())
     elif args.risk_check:
         cmd_risk_check(account_value)
     elif args.reset_circuit_breaker:
