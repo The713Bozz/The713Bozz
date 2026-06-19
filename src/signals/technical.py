@@ -14,6 +14,9 @@ class SignalResult:
     stop_pct: float = 0.08
     target_pct: float = 0.20
     rr_ratio: float = 0.0
+    # Signal 5: catalyst gate — None = not yet checked
+    catalyst_clear: Optional[bool] = None
+    catalyst_detail: str = ""
 
     def __post_init__(self):
         if self.score >= 4:
@@ -95,5 +98,6 @@ def score_quote(symbol: str, quote: dict, spy_change: float = 0.0) -> SignalResu
 
 
 def filter_candidates(results: list[SignalResult], min_score: int = 3) -> list[SignalResult]:
-    qualified = [r for r in results if r.score >= min_score]
+    # catalyst_clear=False (explicitly blocked) is a hard gate regardless of score.
+    qualified = [r for r in results if r.score >= min_score and r.catalyst_clear is not False]
     return sorted(qualified, key=lambda r: r.score, reverse=True)
