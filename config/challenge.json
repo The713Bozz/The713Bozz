@@ -39,6 +39,17 @@
     "winning_trades": 0,
     "losing_trades": 0
   },
+  "milestones": {
+    "m1": {"label": "$50 → $100",         "target": 100.00,     "reached_at": null},
+    "m2": {"label": "$100 → $250",         "target": 250.00,     "reached_at": null},
+    "m3": {"label": "$250 → $500",         "target": 500.00,     "reached_at": null},
+    "m4": {"label": "$500 → $1,000",       "target": 1000.00,    "reached_at": null},
+    "m5": {"label": "$1,000 → $5,000",     "target": 5000.00,    "reached_at": null},
+    "m6": {"label": "$5,000 → $25,000",    "target": 25000.00,   "reached_at": null},
+    "m7": {"label": "$25,000 → $100,000",  "target": 100000.00,  "reached_at": null},
+    "m8": {"label": "$100,000 → $500,000", "target": 500000.00,  "reached_at": null},
+    "m9": {"label": "$500,000 → $5M",      "target": 5000000.00, "reached_at": null}
+  },
   "instruments": {
     "prefer_options": true,
     "allow_equities": true,

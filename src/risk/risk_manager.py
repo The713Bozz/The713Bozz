@@ -205,6 +205,11 @@ def record_trade_result(won: bool, account_value: float) -> None:
     if account_value >= ultimate and not cfg["challenge"].get("ultimate_completed_at"):
         cfg["challenge"]["ultimate_completed_at"] = now
 
+    # Stamp any newly crossed milestones
+    for m in cfg.get("milestones", {}).values():
+        if m["reached_at"] is None and account_value >= m["target"]:
+            m["reached_at"] = now
+
     save_state(cfg)
 
 
@@ -253,6 +258,18 @@ def challenge_progress(account_value: float) -> dict:
         mode = "Phase 2: Compounding ($500 → $5,000,000)"
 
     remaining = max(0.0, ultimate - account_value)
+
+    # Next uncleared milestone
+    next_milestone = next_milestone_label = None
+    for m in cfg.get("milestones", {}).values():
+        if m["reached_at"] is None:
+            next_milestone = m["target"]
+            next_milestone_label = m["label"]
+            break
+
+    # Milestones hit so far
+    hit = [m["label"] for m in cfg.get("milestones", {}).values() if m["reached_at"]]
+
     return {
         "phase": phase,
         "mode": mode,
@@ -265,5 +282,8 @@ def challenge_progress(account_value: float) -> dict:
         "win_rate": f"{win_rate():.0%}",
         "consecutive_losses": cfg["state"]["consecutive_losses"],
         "circuit_breaker_halted": cfg["state"]["circuit_breaker_halted"],
+        "next_milestone": next_milestone,
+        "next_milestone_label": next_milestone_label,
+        "milestones_hit": hit,
         "strategy": "Momentum Compounder — same style all the way to $5M",
     }
