@@ -7,8 +7,6 @@ Usage:
   python src/main.py --scan                            # Scan watchlist for setups
   python src/main.py --reset-circuit-breaker           # Reset after 3 losses
   python src/main.py --reset-daily <account_value>     # Reset daily limits
-  python src/main.py --tv-connect                      # Verify TradingView account
-  python src/main.py --tv-webhook                      # Start TradingView webhook server
 """
 
 import argparse
@@ -30,9 +28,6 @@ from src.signals.learning import learning_report
 from src.signals.regime import RegimeResult
 from src.strategy.watchlist import get_scan_list
 from src.agents.hermes import HermesTask, describe_tasks, is_available, run_task
-from src.tradingview.auth import TVAuth, TVAuthError, connect_from_env
-from src.tradingview.webhook import WebhookServer
-from src.tradingview.signal_adapter import tv_alert_to_signal
 
 SESSION_PATH = Path(__file__).parent.parent / "SESSION.md"
 
@@ -188,46 +183,6 @@ def cmd_hermes(task_type: str, prompt: str, context_pairs: list[str]) -> None:
         print(f"\n[HERMES ERROR] {result.content}\n")
 
 
-def cmd_tv_connect() -> None:
-    print("\n[TradingView] Connecting...")
-    try:
-        profile = connect_from_env()
-    except TVAuthError as exc:
-        print(f"[TradingView] ERROR: {exc}")
-        print("  Make sure TV_USERNAME and TV_PASSWORD are set in your .env file.")
-        return
-    print(f"[TradingView] Connected as: {profile['username']}")
-    print(f"  Plan : {profile['plan']}")
-    if profile.get("email"):
-        print(f"  Email: {profile['email']}")
-    print("  Session cached to config/tv_session.json (expires in ~24 h)\n")
-
-
-def cmd_tv_webhook(port: int) -> None:
-    import time
-
-    def on_alert(alert):
-        signal = tv_alert_to_signal(alert)
-        print(
-            f"\n[TV Alert] {alert.action.upper()} {alert.symbol} "
-            f"@ ${alert.price:.2f}  score={signal.score}  "
-            f"conviction={signal.conviction}  signals={signal.signals}"
-        )
-        print(f"  entry_note: {signal.entry_note}")
-        if signal.score >= 3:
-            print(f"  ** HIGH CONVICTION — review for trade entry **")
-
-    server = WebhookServer(port=port, on_alert=on_alert)
-    server.start()
-    print("[TV Webhook] Press Ctrl-C to stop.")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        server.stop()
-        print("\n[TV Webhook] Stopped.")
-
-
 def main():
     parser = argparse.ArgumentParser(description="The713Bozz Trading System")
     parser.add_argument("--status", action="store_true", help="Show challenge status")
@@ -243,9 +198,6 @@ def main():
     parser.add_argument("--hermes-prompt", type=str, default="", help="Prompt for the Hermes task")
     parser.add_argument("--hermes-context", nargs="*", default=[], metavar="KEY=VALUE", help="Context key=value pairs for Hermes")
     parser.add_argument("--hermes-tasks", action="store_true", help="List available Hermes task types")
-    parser.add_argument("--tv-connect", action="store_true", help="Verify TradingView account connection")
-    parser.add_argument("--tv-webhook", action="store_true", help="Start TradingView webhook server")
-    parser.add_argument("--tv-webhook-port", type=int, default=8765, help="Port for TV webhook server (default: 8765)")
 
     args = parser.parse_args()
     account_value = args.account_value
@@ -275,10 +227,6 @@ def main():
             parser.print_usage()
         else:
             cmd_hermes(args.hermes, args.hermes_prompt, args.hermes_context)
-    elif args.tv_connect:
-        cmd_tv_connect()
-    elif args.tv_webhook:
-        cmd_tv_webhook(args.tv_webhook_port)
     else:
         parser.print_help()
 

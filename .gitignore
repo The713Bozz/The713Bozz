@@ -3,4 +3,3 @@ __pycache__/
 *.pyo
 .env
 logs/*.jsonl
-config/tv_session.json
