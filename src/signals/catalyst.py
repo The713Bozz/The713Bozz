@@ -5,6 +5,7 @@ from typing import Optional
 try:
     from src.data import finnhub as _finnhub
     from src.data import coingecko as _coingecko
+    from src.data import fmp as _fmp
     _DATA_AVAILABLE = True
 except ImportError:
     _DATA_AVAILABLE = False
@@ -119,13 +120,20 @@ def full_catalyst_check(symbol: str, today: Optional[date] = None) -> CatalystRe
     if not btc["allowed"]:
         return CatalystResult(symbol, False, "btc_gate", btc["reason"])
 
-    # 2. Earnings window check
-    dates = _finnhub.earnings_dates(symbol, days_forward=7)
-    earnings_result = check_earnings_window(symbol, dates, today=today)
+    # 2. Earnings window — cross-check Finnhub + FMP for reliability
+    finn_dates = _finnhub.earnings_dates(symbol, days_forward=7)
+    fmp_dates = _fmp.earnings_dates(symbol, days_forward=7)
+    all_dates = list(set(finn_dates + fmp_dates))
+    earnings_result = check_earnings_window(symbol, all_dates, today=today)
     if not earnings_result.clear:
         return earnings_result
 
-    # 3. News scan via Finnhub
+    # 3. Analyst grade signal — major firm downgrade = soft block
+    grade = _fmp.grade_signal(symbol, days_back=14)
+    if grade["sentiment"] == "bearish" and grade["major_downgrades"] > 0:
+        return CatalystResult(symbol, False, "news_caution", grade["detail"])
+
+    # 4. News scan via Finnhub
     headlines = _finnhub.news_headlines_text(symbol, days_back=3)
     if headlines:
         news_result = check_news_text(symbol, headlines)
@@ -133,4 +141,5 @@ def full_catalyst_check(symbol: str, today: Optional[date] = None) -> CatalystRe
             return news_result
 
     btc_note = f" BTC {btc['btc_change']:+.1%}." if btc.get("btc_change") is not None else ""
-    return CatalystResult(symbol, True, "clear", f"All catalyst checks passed.{btc_note}")
+    grade_note = f" Analyst: {grade['sentiment']} ({grade['upgrades']}U/{grade['downgrades']}D)." if (grade['upgrades'] + grade['downgrades']) > 0 else ""
+    return CatalystResult(symbol, True, "clear", f"All catalyst checks passed.{btc_note}{grade_note}")
