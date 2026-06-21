@@ -1,10 +1,14 @@
 import json
+import os
 from dataclasses import dataclass
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "challenge.json"
 LOG_PATH = Path(__file__).parent.parent.parent / "logs" / "trades.jsonl"
+
+# Kill switch: set TRADING_HALTED=1 in environment to abort all order paths instantly.
+_KILL_SWITCH = os.environ.get("TRADING_HALTED", "").strip().lower() in ("1", "true", "yes")
 
 
 @dataclass
@@ -101,6 +105,41 @@ def check_option_liquidity(bid: float, ask: float) -> RiskCheck:
     return RiskCheck(True, f"Liquidity OK — bid/ask ratio {ratio:.0%} ≥ {min_ratio:.0%}.")
 
 
+def check_quote_freshness(quote_timestamp_utc: str, max_age_seconds: int = 60) -> RiskCheck:
+    """
+    Reject stale quotes before order placement.
+    Guards the review→place race condition: if the quote used in review_option_order
+    is older than max_age_seconds, require a fresh review before placing.
+    quote_timestamp_utc: ISO 8601 string from MCP venue_last_trade_time or similar.
+    """
+    try:
+        ts = datetime.fromisoformat(quote_timestamp_utc.replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - ts).total_seconds()
+    except (ValueError, AttributeError):
+        return RiskCheck(False, f"Cannot parse quote timestamp '{quote_timestamp_utc}' — re-fetch before placing.")
+
+    if age > max_age_seconds:
+        return RiskCheck(
+            False,
+            f"Quote is {age:.0f}s old (limit {max_age_seconds}s) — market may have moved. "
+            "Re-run review_option_order before placing.",
+        )
+    return RiskCheck(True, f"Quote fresh — {age:.0f}s old.")
+
+
+def validate_option_entry(bid: float, ask: float, quote_timestamp_utc: str) -> RiskCheck:
+    """
+    Mandatory pre-order gate for all option entries. Combines:
+      1. Liquidity check (bid/ask ratio, minimum ask floor)
+      2. Quote freshness check (stale quote = race condition risk)
+    Both must pass. Call this immediately before review_option_order.
+    """
+    liq = check_option_liquidity(bid, ask)
+    if not liq.allowed:
+        return liq
+    return check_quote_freshness(quote_timestamp_utc)
+
+
 def entry_mid_stop(ask: float, bid: float, stop_pct: float = 0.50) -> dict:
     """
     Anchor the hard stop to the mid price at entry, not the ask fill.
@@ -157,6 +196,9 @@ def required_dte(pdt_trades_used: int, weekday: int = -1) -> int:
 
 
 def check_trade_allowed(account_value: float) -> RiskCheck:
+    if _KILL_SWITCH:
+        return RiskCheck(False, "TRADING_HALTED env var is set — kill switch active. Unset to resume.")
+
     cfg = load_state()
     state = cfg["state"]
     risk = cfg["risk"]
