@@ -16,6 +16,9 @@ Two entry points:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Optional
+
 from src.data import finnhub as _finnhub
 from src.data import alphavantage as _av
 from src.signals.catalyst import full_catalyst_check
@@ -27,6 +30,49 @@ from src.signals.technical import (
     score_from_metrics,
 )
 from src.strategy.watchlist import get_scan_list
+
+
+# ── Volume projection helper ──────────────────────────────────────────────────
+
+def _project_todays_volume(bars: list[dict]) -> Optional[float]:
+    """
+    If bars[-1] is today's partial bar, scale its raw volume to a projected
+    full-session equivalent using (390 / minutes_elapsed_since_930_ET).
+
+    Returns None when the last bar is from a prior day (stale cache), so
+    score_from_bars() falls back to bars[-1]["v"] as-is (completed prior day).
+    Never call this after market close — returns raw volume unchanged if >= 390
+    minutes have elapsed.
+    """
+    if not bars:
+        return None
+
+    last_t = bars[-1].get("t", "")
+    if not last_t:
+        return None
+
+    # Robinhood daily bars use UTC midnight begins_at (e.g. "2026-06-23T00:00:00Z")
+    today_utc_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not str(last_t).startswith(today_utc_prefix):
+        return None  # Stale bar — caller will use bars[-1]["v"] as prior-day volume
+
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
+
+    et = ZoneInfo("America/New_York")
+    now_et = datetime.now(timezone.utc).astimezone(et)
+    market_open_et = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+    minutes_elapsed = (now_et - market_open_et).total_seconds() / 60
+
+    raw = float(bars[-1]["v"])
+    if minutes_elapsed < 1:
+        return raw  # Pre-market or opening tick — no meaningful projection yet
+    if minutes_elapsed >= 390:
+        return raw  # Full session complete — no scaling needed
+
+    return raw * (390.0 / minutes_elapsed)
 
 
 # ── Regime helpers ────────────────────────────────────────────────────────────
@@ -60,7 +106,8 @@ def run_scan(
     results: list[SignalResult] = []
     for symbol, quote in quotes.items():
         bars = (historicals or {}).get(symbol, [])
-        result = score_from_bars(symbol, quote, bars, spy_change=spy_today)
+        today_vol = _project_todays_volume(bars) if bars else None
+        result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
 
     _run_catalyst_gate(results)

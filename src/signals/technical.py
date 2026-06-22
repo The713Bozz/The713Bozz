@@ -162,12 +162,14 @@ def score_from_bars(
     quote: dict,
     bars: list[dict],
     spy_change: float = 0.0,
+    today_volume: Optional[float] = None,
 ) -> SignalResult:
     """
-    Score using live quote + Finnhub OHLCV bars.
-    Computes volume stats, 52w high, and EMA alignment from bars locally
-    so no extra API calls are needed.
+    Score using live quote + OHLCV bars.
     bars: list of {"t","o","h","l","c","v"} ordered oldest → newest.
+    today_volume: projected full-day volume for the current session (caller
+                  scales the partial bar before passing). If None, bars[-1]["v"]
+                  is used as-is — correct when bars are complete daily bars.
     """
     volume: Optional[float] = None
     avg_volume: Optional[float] = None
@@ -175,7 +177,7 @@ def score_from_bars(
     ema_aligned: Optional[bool] = None
 
     if bars:
-        volume = float(bars[-1]["v"])
+        volume = today_volume if today_volume is not None else float(bars[-1]["v"])
         if len(bars) >= 15:
             avg_volume = sum(b["v"] for b in bars[-15:-1]) / 14
         high_52w = max(b["h"] for b in bars)

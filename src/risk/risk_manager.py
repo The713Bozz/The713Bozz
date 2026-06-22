@@ -43,6 +43,35 @@ def load_state() -> dict:
         return json.load(f)
 
 
+def get_agentic_account() -> str:
+    """
+    Return the agentic challenge account number from config/challenge.json.
+    ALWAYS use this for portfolio fetches and order calls — never hardcode,
+    never guess, never use the margin account.
+    """
+    cfg = load_state()
+    acct = cfg.get("account", {}).get("agentic_account_number")
+    if not acct:
+        raise ValueError(
+            "agentic_account_number not set in config/challenge.json. "
+            "Cannot proceed without a verified account number."
+        )
+    return acct
+
+
+def assert_agentic_account(account_number: str) -> None:
+    """
+    Raise PermissionError if account_number does not match the agentic challenge account.
+    Call before any order placement to prevent touching the wrong account.
+    """
+    expected = get_agentic_account()
+    if str(account_number).strip() != str(expected).strip():
+        raise PermissionError(
+            f"WRONG ACCOUNT: '{account_number}' is not the agentic challenge account. "
+            f"Expected '{expected}'. Never touch any other account."
+        )
+
+
 def save_state(state: dict) -> None:
     with open(CONFIG_PATH, "w") as f:
         json.dump(state, f, indent=2)
