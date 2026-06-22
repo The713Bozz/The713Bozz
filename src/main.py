@@ -20,6 +20,7 @@ from src.risk.risk_manager import (
     challenge_progress,
     check_trade_allowed,
     load_state,
+    record_trade_result,
     reset_circuit_breaker,
     reset_daily,
 )
@@ -137,6 +138,134 @@ def cmd_scan(account_value: float, regime: RegimeResult | None = None) -> None:
     print_scan_report(candidates, detected_regime, account_value)
 
 
+def cmd_build_order(args) -> None:
+    from src.execution.order import (
+        OrderRejected,
+        build_equity_order,
+        build_option_order,
+        display_order,
+        log_order_attempt,
+    )
+
+    account_value = args.account_value
+    signals = [s.strip() for s in args.signals.split(",") if s.strip()] if args.signals else []
+
+    if not args.symbol:
+        print("[ERROR] --symbol required")
+        return
+    if not args.instrument:
+        print("[ERROR] --instrument required")
+        return
+
+    try:
+        if args.instrument == "equity":
+            if args.price is None:
+                print("[ERROR] --price required for equity orders")
+                return
+            if not args.quote_time:
+                print("[ERROR] --quote-time required")
+                return
+            spec = build_equity_order(
+                symbol=args.symbol,
+                price=args.price,
+                quote_timestamp_utc=args.quote_time,
+                account_value=account_value,
+                signals=signals,
+                score=args.score,
+                regime=args.regime,
+                entry_note=args.entry_note,
+            )
+        elif args.instrument == "option":
+            missing = []
+            if args.bid is None:
+                missing.append("--bid")
+            if args.ask is None:
+                missing.append("--ask")
+            if not args.quote_time:
+                missing.append("--quote-time")
+            if not args.option_type:
+                missing.append("--option-type")
+            if args.strike is None:
+                missing.append("--strike")
+            if not args.expiry:
+                missing.append("--expiry")
+            if missing:
+                print(f"[ERROR] Missing required args for option: {', '.join(missing)}")
+                return
+            spec = build_option_order(
+                symbol=args.symbol,
+                bid=args.bid,
+                ask=args.ask,
+                quote_timestamp_utc=args.quote_time,
+                account_value=account_value,
+                strike=args.strike,
+                expiry_date=args.expiry,
+                option_type=args.option_type,
+                signals=signals,
+                score=args.score,
+                regime=args.regime,
+                pdt_trades_used=args.pdt_trades_used,
+                entry_note=args.entry_note,
+            )
+        else:
+            print("[ERROR] --instrument must be 'equity' or 'option'")
+            return
+
+        print(display_order(spec))
+        log_order_attempt(spec, status="pending")
+
+    except OrderRejected as e:
+        print(f"\n[REJECTED] {e}\n")
+    except Exception as e:
+        print(f"\n[ERROR] {e}\n")
+
+
+def cmd_log_fill(args) -> None:
+    from src.execution.order import log_fill
+
+    missing = []
+    if not args.order_id:
+        missing.append("--order-id")
+    if not args.symbol:
+        missing.append("--symbol")
+    if args.filled_price is None:
+        missing.append("--filled-price")
+    if args.quantity is None:
+        missing.append("--quantity")
+    if not args.instrument:
+        missing.append("--instrument")
+    if missing:
+        print(f"[ERROR] Missing required args: {', '.join(missing)}")
+        return
+
+    log_fill(
+        order_id=args.order_id,
+        symbol=args.symbol,
+        filled_price=args.filled_price,
+        quantity=args.quantity,
+        instrument=args.instrument,
+        option_type=getattr(args, "option_type", None),
+        strike=getattr(args, "strike", None),
+        expiry_date=getattr(args, "expiry", None),
+    )
+    qty_unit = "contracts" if args.instrument == "option" else "shares"
+    print(f"Fill logged: {args.quantity} {qty_unit} {args.symbol} @ ${args.filled_price}")
+
+
+def cmd_record_result(args) -> None:
+    if not args.won and not args.lost:
+        print("[ERROR] Specify --won or --lost")
+        return
+    if args.won and args.lost:
+        print("[ERROR] Cannot specify both --won and --lost")
+        return
+
+    record_trade_result(won=args.won, account_value=args.account_value)
+    status = "WIN" if args.won else "LOSS"
+    print(f"[{status}] Trade result recorded. Account value: ${args.account_value:.2f}")
+    print(learning_report())
+
+
 def cmd_risk_check(account_value: float) -> None:
     check = check_trade_allowed(account_value)
     status = "ALLOWED" if check.allowed else "BLOCKED"
@@ -157,6 +286,34 @@ def main():
     parser.add_argument("--session-notes", type=str, default="", help="Notes to append to SESSION.md")
     parser.add_argument("--account-value", type=float, default=50.0, help="Current account value in USD")
 
+    # --build-order arguments
+    parser.add_argument("--build-order", action="store_true", help="Build and gate-validate an order spec")
+    parser.add_argument("--symbol", type=str, help="Ticker symbol")
+    parser.add_argument("--price", type=float, help="Current price (equity)")
+    parser.add_argument("--bid", type=float, help="Option bid price")
+    parser.add_argument("--ask", type=float, help="Option ask price")
+    parser.add_argument("--quote-time", type=str, help="Quote timestamp ISO 8601 UTC")
+    parser.add_argument("--instrument", type=str, choices=["equity", "option"], help="equity or option")
+    parser.add_argument("--option-type", type=str, choices=["call", "put"], help="call or put")
+    parser.add_argument("--strike", type=float, help="Option strike price")
+    parser.add_argument("--expiry", type=str, help="Option expiry date YYYY-MM-DD")
+    parser.add_argument("--signals", type=str, default="", help="Comma-separated signal names")
+    parser.add_argument("--score", type=int, default=0, help="Signal score 0-4")
+    parser.add_argument("--regime", type=str, default="unknown", help="Market regime label")
+    parser.add_argument("--pdt-trades-used", type=int, default=0, help="PDT day trades used this rolling 5-day window")
+    parser.add_argument("--entry-note", type=str, default="", help="Entry context note")
+
+    # --log-fill arguments
+    parser.add_argument("--log-fill", action="store_true", help="Log a confirmed fill to trades.jsonl")
+    parser.add_argument("--order-id", type=str, help="Robinhood order ID")
+    parser.add_argument("--filled-price", type=float, help="Actual fill price")
+    parser.add_argument("--quantity", type=float, help="Shares or contracts filled")
+
+    # --record-result arguments
+    parser.add_argument("--record-result", action="store_true", help="Record win/loss and update challenge state")
+    parser.add_argument("--won", action="store_true", help="Trade was a winner")
+    parser.add_argument("--lost", action="store_true", help="Trade was a loser")
+
     args = parser.parse_args()
     account_value = args.account_value
 
@@ -171,6 +328,12 @@ def main():
         cmd_write_session(account_value, notes=args.session_notes)
     elif args.risk_check:
         cmd_risk_check(account_value)
+    elif args.build_order:
+        cmd_build_order(args)
+    elif args.log_fill:
+        cmd_log_fill(args)
+    elif args.record_result:
+        cmd_record_result(args)
     elif args.reset_circuit_breaker:
         reset_circuit_breaker()
         print("Circuit breaker reset. Consecutive losses set to 0.")
