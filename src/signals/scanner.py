@@ -84,6 +84,59 @@ def _spy_changes_from_bars(bars: list[dict], days: int = 5) -> list[float]:
     return [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
 
 
+# ── Analyst forecast layer ────────────────────────────────────────────────────
+
+def _fetch_analyst_targets(symbols: list[str]) -> dict[str, dict]:
+    """
+    Fetch Finnhub analyst consensus price targets for each symbol.
+    Returns {} per symbol if API key not set or endpoint unavailable.
+    Silently skips failures so the rest of the scan proceeds.
+    """
+    targets: dict[str, dict] = {}
+    for sym in symbols:
+        try:
+            t = _finnhub.price_target(sym)
+            if t:
+                targets[sym] = t
+        except Exception:
+            pass
+    return targets
+
+
+def _apply_analyst_signal(result: SignalResult, target_dict: dict) -> None:
+    """
+    Apply analyst consensus target to an already-scored SignalResult.
+    Modifies result in place — call BEFORE catalyst gate and filter.
+
+    +1 signal ("analyst_+X%_target") if consensus mean ≥ 10% above current price.
+    Sets forecast_warning if consensus mean ≥ 10% BELOW current price.
+    Re-evaluates breakout_alert and conviction after any score change.
+    """
+    mean = target_dict.get("target_mean")
+    if not mean or result.current_price <= 0:
+        return
+
+    upside = (mean - result.current_price) / result.current_price
+    result.forecast_upside_pct = upside
+    result.forecast_target = float(mean)
+
+    if upside >= 0.10:
+        result.score += 1
+        result.signals.append(f"analyst_{upside:+.0%}_target")
+        # Recompute conviction
+        if result.score >= 4:
+            result.conviction = "high"
+        elif result.score == 3:
+            result.conviction = "medium"
+        # Re-evaluate breakout alert with boosted score
+        if result.day_change_pct >= 0.08 and result.score >= 2:
+            result.breakout_alert = True
+    elif upside <= -0.10:
+        result.forecast_warning = (
+            f"Analyst target ${mean:.2f} ({upside:.0%} below current) — consensus sees downside"
+        )
+
+
 # ── Primary path (agent session with MCP) ─────────────────────────────────────
 
 def run_scan(
@@ -109,6 +162,10 @@ def run_scan(
         today_vol = _project_todays_volume(bars) if bars else None
         result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
+
+    analyst_targets = _fetch_analyst_targets(list(quotes.keys()))
+    for r in results:
+        _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
 
     _run_catalyst_gate(results)
     return filter_candidates(results, min_score=3), regime
@@ -159,6 +216,10 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
             elif r.score == 3:
                 r.conviction = "medium"
 
+    analyst_targets = _fetch_analyst_targets([r.symbol for r in results])
+    for r in results:
+        _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
+
     _run_catalyst_gate(results)
     return filter_candidates(results, min_score=3), regime
 
@@ -204,6 +265,10 @@ def print_scan_report(
             print(f"    {r.entry_note}  |  Stop -{r.stop_pct:.0%}  Target +{r.target_pct:.0%}  R:R {r.rr_ratio:.1f}x  [{r.instrument} {r.option_type or ''}]")
             if r.catalyst_detail:
                 print(f"    Catalyst: {r.catalyst_detail}")
+            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= 0.10:
+                print(f"    Forecast: ${r.forecast_target:.2f} ({r.forecast_upside_pct:+.0%} analyst consensus upside)")
+            if r.forecast_warning:
+                print(f"    ⚠  {r.forecast_warning}")
         print()
     else:
         print("No 3/4+ candidates at this time.\n")
@@ -214,4 +279,8 @@ def print_scan_report(
             print(f"  !! {r.symbol:<6} {r.score}/4  {r.entry_note}  [{', '.join(r.signals)}]")
             if r.catalyst_detail:
                 print(f"     Catalyst: {r.catalyst_detail}")
+            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= 0.10:
+                print(f"     Forecast: ${r.forecast_target:.2f} ({r.forecast_upside_pct:+.0%} upside)")
+            if r.forecast_warning:
+                print(f"     ⚠  {r.forecast_warning}")
         print()

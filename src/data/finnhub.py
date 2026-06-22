@@ -130,6 +130,28 @@ def stock_metrics(symbol: str) -> dict:
     }
 
 
+def price_target(symbol: str) -> dict:
+    """
+    Return analyst consensus price target from Finnhub.
+    Returns: {target_mean, target_high, target_low} — empty dict if unavailable.
+    Minimum 1 analyst required; Finnhub aggregates all covering analysts.
+    """
+    data = _get("/stock/price-target", {"symbol": symbol.upper()})
+    if not isinstance(data, dict):
+        return {}
+    mean = data.get("targetMean")
+    high = data.get("targetHigh")
+    low  = data.get("targetLow")
+    if not mean:
+        return {}
+    return {
+        "target_mean": float(mean),
+        "target_high": float(high) if high else None,
+        "target_low":  float(low)  if low  else None,
+        "last_updated": data.get("lastUpdated", ""),
+    }
+
+
 def current_quote(symbol: str) -> dict | None:
     """
     Return current Finnhub quote for a symbol.

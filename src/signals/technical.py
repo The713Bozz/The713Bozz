@@ -17,6 +17,12 @@ class SignalResult:
     catalyst_clear: Optional[bool] = None
     catalyst_detail: str = ""
     breakout_alert: bool = False  # up ≥8% with 2+ signals — surface even below 3/4 threshold
+    # Populated after scoring by _apply_analyst_signal() in scanner
+    current_price: float = 0.0
+    day_change_pct: float = 0.0
+    forecast_upside_pct: Optional[float] = None  # analyst consensus upside from current price
+    forecast_target: Optional[float] = None       # analyst consensus mean target price
+    forecast_warning: str = ""                    # non-empty when analyst sees downside
 
     def __post_init__(self):
         if self.score >= 4:
@@ -142,6 +148,8 @@ def score_quote(
         stop_pct=stop_pct,
         target_pct=target_pct,
         breakout_alert=breakout_alert,
+        current_price=price,
+        day_change_pct=day_change_pct,
     )
 
 
