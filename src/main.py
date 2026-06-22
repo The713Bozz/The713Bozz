@@ -10,7 +10,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,7 +27,6 @@ from src.signals.learning import learning_report
 from src.signals.regime import RegimeResult
 from src.signals.scanner import print_scan_report, run_scan_standalone
 from src.strategy.watchlist import get_scan_list
-from src.agents.hermes import HermesTask, describe_tasks, is_available, run_task
 
 SESSION_PATH = Path(__file__).parent.parent / "SESSION.md"
 
@@ -98,8 +96,6 @@ def cmd_write_session(account_value: float, notes: str = "") -> None:
         "## Pending Tasks",
         "- [ ] Run morning scan at 9:30 AM ET",
         "- [ ] Check open positions vs stop levels",
-        "- [ ] Wire in FMP congressional trades API (waiting on Hermes)",
-        "- [ ] Wire in Quiver Quant WSB sentiment API (waiting on Hermes)",
     ]
 
     if notes:
@@ -149,34 +145,6 @@ def cmd_risk_check(account_value: float) -> None:
         print(f"Max position: ${check.max_dollars:.2f}\n")
 
 
-def cmd_hermes(task_type: str, prompt: str, context_pairs: list[str]) -> None:
-    """Dispatch a pre-approved task to the Hermes agent."""
-    print(f"\n[HERMES] Checking availability...")
-    if not is_available():
-        print("[HERMES] Unavailable — API unreachable or key not set.")
-        print("  Set NOUS_BASE_URL in .env if the inference endpoint differs from default.")
-        print("  Default: https://inference.nousresearch.com/v1")
-        return
-
-    ctx: dict = {}
-    for pair in context_pairs:
-        if "=" in pair:
-            k, _, v = pair.partition("=")
-            ctx[k.strip()] = v.strip()
-
-    task = HermesTask(task_type=task_type, prompt=prompt, context=ctx)
-    print(f"[HERMES] Running task: {task_type}")
-    result = run_task(task)
-
-    if result.ok:
-        print(f"\n[HERMES OK] model={result.model} tokens={result.tokens_used}")
-        print("-" * 54)
-        print(result.content)
-        print("-" * 54 + "\n")
-    else:
-        print(f"\n[HERMES ERROR] {result.content}\n")
-
-
 def main():
     parser = argparse.ArgumentParser(description="The713Bozz Trading System")
     parser.add_argument("--status", action="store_true", help="Show challenge status")
@@ -188,10 +156,6 @@ def main():
     parser.add_argument("--write-session", action="store_true", help="Write SESSION.md state snapshot")
     parser.add_argument("--session-notes", type=str, default="", help="Notes to append to SESSION.md")
     parser.add_argument("--account-value", type=float, default=50.0, help="Current account value in USD")
-    parser.add_argument("--hermes", metavar="TASK_TYPE", help="Dispatch a task to Hermes agent (requires user approval)")
-    parser.add_argument("--hermes-prompt", type=str, default="", help="Prompt for the Hermes task")
-    parser.add_argument("--hermes-context", nargs="*", default=[], metavar="KEY=VALUE", help="Context key=value pairs for Hermes")
-    parser.add_argument("--hermes-tasks", action="store_true", help="List available Hermes task types")
 
     args = parser.parse_args()
     account_value = args.account_value
@@ -213,14 +177,6 @@ def main():
     elif args.reset_daily is not None:
         reset_daily(args.reset_daily)
         print(f"Daily limits reset. Day open value set to ${args.reset_daily:.2f}")
-    elif args.hermes_tasks:
-        print(describe_tasks())
-    elif args.hermes:
-        if not args.hermes_prompt:
-            print("Error: --hermes-prompt is required with --hermes")
-            parser.print_usage()
-        else:
-            cmd_hermes(args.hermes, args.hermes_prompt, args.hermes_context)
     else:
         parser.print_help()
 
