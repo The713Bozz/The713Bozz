@@ -188,17 +188,30 @@ def print_scan_report(
         print("No new entries. Monitoring existing positions only.\n")
         return
 
-    if not candidates:
-        print("\nNo candidates cleared all gates at this time.\n")
-        return
+    # Separate clean 3/4+ candidates from breakout alerts (2/4 but ≥8% on the day)
+    clean = [r for r in candidates if r.score >= 3]
+    alerts = [r for r in candidates if r.breakout_alert and r.score < 3]
 
-    max_pos = position_size(account_value)
-    print(f"Max position: ${max_pos:.2f}\n")
-    print(f"{'#':<3} {'Symbol':<7} {'Score':<7} {'Conv':<9} {'Signals'}")
-    print("-" * 75)
-    for i, r in enumerate(candidates, 1):
-        print(f"{i:<3} {r.symbol:<7} {r.score}/4{'':<3} {r.conviction:<9} {', '.join(r.signals)}")
-        print(f"    {r.entry_note}  |  Stop -{r.stop_pct:.0%}  Target +{r.target_pct:.0%}  R:R {r.rr_ratio:.1f}x  [{r.instrument} {r.option_type or ''}]")
-        if r.catalyst_detail:
-            print(f"    Catalyst: {r.catalyst_detail}")
-    print()
+    max_pos = position_size(account_value) * regime.position_scale
+    scale_note = "  ⚠ RANGING: half-size entries" if regime.position_scale < 1.0 else ""
+    print(f"Max position: ${max_pos:.2f}{scale_note}\n")
+
+    if clean:
+        print(f"{'#':<3} {'Symbol':<7} {'Score':<7} {'Conv':<9} {'Signals'}")
+        print("-" * 75)
+        for i, r in enumerate(clean, 1):
+            print(f"{i:<3} {r.symbol:<7} {r.score}/4{'':<3} {r.conviction:<9} {', '.join(r.signals)}")
+            print(f"    {r.entry_note}  |  Stop -{r.stop_pct:.0%}  Target +{r.target_pct:.0%}  R:R {r.rr_ratio:.1f}x  [{r.instrument} {r.option_type or ''}]")
+            if r.catalyst_detail:
+                print(f"    Catalyst: {r.catalyst_detail}")
+        print()
+    else:
+        print("No 3/4+ candidates at this time.\n")
+
+    if alerts:
+        print("--- BREAKOUT ALERTS (≥8% move, 2+ signals — review for entry) ---")
+        for r in alerts:
+            print(f"  !! {r.symbol:<6} {r.score}/4  {r.entry_note}  [{', '.join(r.signals)}]")
+            if r.catalyst_detail:
+                print(f"     Catalyst: {r.catalyst_detail}")
+        print()

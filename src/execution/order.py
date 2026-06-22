@@ -81,11 +81,13 @@ def build_equity_order(
     score: int,
     regime: str,
     entry_note: str = "",
+    position_scale: float = 1.0,
 ) -> OrderSpec:
     """
     Build a validated equity buy order spec.
     Raises OrderRejected if any gate fails.
     Gates: kill switch, circuit breaker, daily drawdown, PDT limit, quote freshness, signal score.
+    position_scale: 1.0 = full, 0.5 = half (ranging regime).
     """
     account_number = get_agentic_account()
 
@@ -100,7 +102,7 @@ def build_equity_order(
     if score < 3:
         raise OrderRejected(f"Signal score {score}/4 below minimum 3 — setup not ready.")
 
-    max_dollars = position_size(account_value)
+    max_dollars = position_size(account_value) * max(0.0, min(1.0, position_scale))
     quantity = round(max_dollars / price, 4)
     quantity = max(0.001, quantity)
     total_cost = round(quantity * price, 2)
@@ -144,6 +146,7 @@ def build_option_order(
     regime: str,
     pdt_trades_used: int = 0,
     entry_note: str = "",
+    position_scale: float = 1.0,
 ) -> OrderSpec:
     """
     Build a validated option buy order spec.
@@ -151,6 +154,7 @@ def build_option_order(
     Gates: kill switch, circuit breaker, daily drawdown, PDT limit,
            option liquidity, quote freshness, signal score, DTE minimum.
     Stop anchored to mid price (not ask) to survive the spread at fill.
+    position_scale: 1.0 = full, 0.5 = half (ranging regime).
     """
     account_number = get_agentic_account()
 
@@ -179,7 +183,7 @@ def build_option_order(
             f"Select a contract expiring at least {min_dte} days from today."
         )
 
-    max_dollars = position_size(account_value)
+    max_dollars = position_size(account_value) * max(0.0, min(1.0, position_scale))
     contracts = option_contracts(account_value, ask)
     total_cost = round(contracts * ask * 100, 2)
 

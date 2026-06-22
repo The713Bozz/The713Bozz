@@ -9,6 +9,7 @@ class RegimeResult:
     instrument_bias: str  # "calls" | "puts" | "flat" | "any"
     confidence: str       # "high" | "medium" | "low"
     detail: str
+    position_scale: float = 1.0  # 1.0 = full size, 0.5 = half (ranging), 0.0 = no entry
 
 
 def classify_regime(spy_changes: list[float]) -> RegimeResult:
@@ -39,6 +40,7 @@ def classify_regime(spy_changes: list[float]) -> RegimeResult:
             "volatile", False, "flat", "high",
             f"Volatile: avg daily move {avg_abs:.1%} over {n}d. "
             "Momentum signals unreliable — stand aside.",
+            position_scale=0.0,
         )
 
     if avg < -0.003 and pos_days < n / 2:
@@ -47,6 +49,7 @@ def classify_regime(spy_changes: list[float]) -> RegimeResult:
             "bear", False, "puts", conf,
             f"Bear: SPY avg {avg:+.2%}/day over {n}d ({pos_days}/{n} up). "
             "Momentum longs blocked. Watch for put setups on bounces.",
+            position_scale=0.0,
         )
 
     if avg > 0.003 and pos_days >= n / 2:
@@ -55,12 +58,16 @@ def classify_regime(spy_changes: list[float]) -> RegimeResult:
             "bull", True, "calls", conf,
             f"Bull: SPY avg {avg:+.2%}/day over {n}d ({pos_days}/{n} up). "
             "Momentum longs enabled — full scan.",
+            position_scale=1.0,
         )
 
+    # Ranging: allow 3/4+ entries at half position — individual stocks can outrun SPY.
+    # Bear and volatile remain hard halts.
     return RegimeResult(
-        "ranging", False, "flat", "medium",
+        "ranging", True, "flat", "medium",
         f"Ranging: SPY avg {avg:+.2%}/day, no clear trend over {n}d. "
-        "Momentum edge too low — wait for directional break.",
+        "Half-size entries for 3/4+ signals only — macro edge is low.",
+        position_scale=0.5,
     )
 
 

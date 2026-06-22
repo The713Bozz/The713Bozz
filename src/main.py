@@ -174,6 +174,7 @@ def cmd_build_order(args) -> None:
                 score=args.score,
                 regime=args.regime,
                 entry_note=args.entry_note,
+                position_scale=args.position_scale,
             )
         elif args.instrument == "option":
             missing = []
@@ -206,6 +207,7 @@ def cmd_build_order(args) -> None:
                 regime=args.regime,
                 pdt_trades_used=args.pdt_trades_used,
                 entry_note=args.entry_note,
+                position_scale=args.position_scale,
             )
         else:
             print("[ERROR] --instrument must be 'equity' or 'option'")
@@ -302,6 +304,7 @@ def main():
     parser.add_argument("--regime", type=str, default="unknown", help="Market regime label")
     parser.add_argument("--pdt-trades-used", type=int, default=0, help="PDT day trades used this rolling 5-day window")
     parser.add_argument("--entry-note", type=str, default="", help="Entry context note")
+    parser.add_argument("--position-scale", type=float, default=1.0, help="Position size scale: 1.0=full, 0.5=half (ranging regime)")
 
     # --log-fill arguments
     parser.add_argument("--log-fill", action="store_true", help="Log a confirmed fill to trades.jsonl")

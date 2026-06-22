@@ -16,6 +16,7 @@ class SignalResult:
     rr_ratio: float = 0.0
     catalyst_clear: Optional[bool] = None
     catalyst_detail: str = ""
+    breakout_alert: bool = False  # up ≥8% with 2+ signals — surface even below 3/4 threshold
 
     def __post_init__(self):
         if self.score >= 4:
@@ -49,6 +50,7 @@ def score_quote(
     ema_aligned: Optional[bool] = None,
     avg_vol_10d: Optional[float] = None,
     avg_vol_3m: Optional[float] = None,
+    high_3m: Optional[float] = None,
 ) -> SignalResult:
     """
     Score a symbol against the Momentum Compounder signal stack.
@@ -100,17 +102,21 @@ def score_quote(
         score += 1
         signals.append("ema_aligned")
 
-    # 4. 52-week high proximity — skip if data unavailable; fallback to breakout magnitude
+    # 4. High proximity — 52w high first; 3m high as recovery breakout fallback;
+    #    then magnitude breakout. This lets fallen stocks that are reclaiming their
+    #    recent range score the signal even when the 52w peak is far above.
     if high_52w is not None and high_52w > 0:
         if price >= high_52w * 0.90:
             score += 1
             signals.append("near_52w_high")
+        elif high_3m is not None and high_3m > 0 and price >= high_3m * 0.90:
+            # Near 3-month high — recovery breakout reclaiming recent range
+            score += 1
+            signals.append("near_3m_high")
         elif day_change_pct >= 0.05:
             score += 1
             signals.append("strong_breakout")
     elif day_change_pct >= 0.07:
-        # Only count magnitude breakout as a fallback when 52w high is unknown
-        # Higher bar (7% vs 5%) to compensate for missing context
         score += 1
         signals.append("strong_breakout")
 
@@ -122,6 +128,10 @@ def score_quote(
     vol_note = f", Vol {volume/avg_volume:.1f}x" if (volume and avg_volume) else ""
     ema_note = " EMA✓" if ema_aligned else ""
 
+    # Breakout alert: stock up ≥8% with 2+ signals. Surface even below 3/4 threshold
+    # so news-driven explosions are never silently dropped from the report.
+    breakout_alert = day_change_pct >= 0.08 and score >= 2
+
     return SignalResult(
         symbol=symbol,
         score=score,
@@ -131,6 +141,7 @@ def score_quote(
         entry_note=f"{day_change_pct:+.1%}{vol_note}{ema_note}",
         stop_pct=stop_pct,
         target_pct=target_pct,
+        breakout_alert=breakout_alert,
     )
 
 
@@ -176,11 +187,16 @@ def score_from_bars(
     high_52w: Optional[float] = None
     ema_aligned: Optional[bool] = None
 
+    high_3m: Optional[float] = None
+
     if bars:
         volume = today_volume if today_volume is not None else float(bars[-1]["v"])
         if len(bars) >= 15:
             avg_volume = sum(b["v"] for b in bars[-15:-1]) / 14
         high_52w = max(b["h"] for b in bars)
+        # 3-month high (~63 trading days) — catches recovery breakouts in fallen stocks
+        if len(bars) >= 63:
+            high_3m = max(b["h"] for b in bars[-63:])
 
         closes = [b["c"] for b in bars]
         ema9 = compute_ema(closes, 9)
@@ -196,10 +212,18 @@ def score_from_bars(
         avg_volume=avg_volume,
         high_52w=high_52w,
         ema_aligned=ema_aligned,
+        high_3m=high_3m,
     )
 
 
 def filter_candidates(results: list[SignalResult], min_score: int = 3) -> list[SignalResult]:
-    """catalyst_clear=False is a hard gate regardless of score."""
-    qualified = [r for r in results if r.score >= min_score and r.catalyst_clear is not False]
+    """
+    catalyst_clear=False is a hard gate regardless of score.
+    breakout_alert=True entries (up ≥8%, score ≥2) pass through even below min_score
+    so news-driven explosions are never silently dropped from the report.
+    """
+    qualified = [
+        r for r in results
+        if (r.score >= min_score or r.breakout_alert) and r.catalyst_clear is not False
+    ]
     return sorted(qualified, key=lambda r: r.score, reverse=True)
