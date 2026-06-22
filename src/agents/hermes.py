@@ -51,7 +51,16 @@ TASK_TYPES = {
     "news_summary":  "Summarize and assess news impact on a symbol",
     "sector_scan":   "Identify momentum sectors or leading stocks",
     "risk_review":   "Review a proposed trade for risk/reward quality",
+    "code_patch":    "Return a concrete code implementation given file context and a spec",
 }
+
+# System prompt override for code_patch tasks — optimized for implementation output
+_CODE_PATCH_SYSTEM = (
+    "You are Hermes, an expert Python implementer. "
+    "Given file context and a specification, return ONLY the complete, ready-to-apply code. "
+    "No explanations, no prose — just the implementation. "
+    "If the spec is ambiguous, pick the most conservative interpretation that satisfies the requirement."
+)
 
 
 def _headers() -> dict:
@@ -106,11 +115,13 @@ def run_task(task: HermesTask) -> HermesResult:
             task_type=task.task_type,
         )
 
-    system = (
+    system = _CODE_PATCH_SYSTEM if task.task_type == "code_patch" else (
         "You are Hermes, a financial research assistant supporting a momentum trading system. "
         "Be concise, factual, and structured. Never give financial advice that bypasses "
         "explicit risk rules. Always flag uncertainty."
     )
+
+    max_tokens = 2048 if task.task_type == "code_patch" else 512
 
     context_block = ""
     if task.context:
@@ -119,7 +130,7 @@ def run_task(task: HermesTask) -> HermesResult:
 
     user_msg = f"[{task.task_type.upper()}]\n{task.prompt}{context_block}"
 
-    raw = _chat(system, user_msg)
+    raw = _chat(system, user_msg, max_tokens=max_tokens)
 
     if raw is None or "_error" in raw:
         err = (raw or {}).get("_error", "No response")
