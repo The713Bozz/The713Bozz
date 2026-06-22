@@ -1,0 +1,157 @@
+"""
+Full scan pipeline: fetch → enrich → score → catalyst gate → filter → rank.
+
+Two entry points:
+
+  run_scan(quotes, account_value)
+      Primary path. Call from Claude Code agent session where Robinhood MCP
+      quotes are already fetched. Uses MCP get_equity_historicals for volume.
+      Full 4-signal scoring (RS + volume_surge + ema_aligned + 52w_high).
+
+  run_scan_standalone(account_value)
+      Standalone CLI path (--scan flag). Fetches from Finnhub — no MCP needed.
+      3-signal scoring (RS + volume_accumulation + ema_aligned + 52w_high).
+      EMA called via Alpha Vantage on top-3 candidates only (25 req/day limit).
+"""
+
+from __future__ import annotations
+
+from src.data import finnhub as _finnhub
+from src.data import alphavantage as _av
+from src.signals.catalyst import full_catalyst_check
+from src.signals.regime import RegimeResult, classify_regime
+from src.signals.technical import (
+    SignalResult,
+    filter_candidates,
+    score_from_bars,
+    score_from_metrics,
+)
+from src.strategy.watchlist import get_scan_list
+
+
+# ── Regime helpers ────────────────────────────────────────────────────────────
+
+def _spy_changes_from_bars(bars: list[dict], days: int = 5) -> list[float]:
+    if len(bars) < 2:
+        return []
+    closes = [b["c"] for b in bars[-(days + 1):]]
+    return [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
+
+
+# ── Primary path (agent session with MCP) ─────────────────────────────────────
+
+def run_scan(
+    quotes: dict[str, dict],
+    spy_bars: list[dict],
+    account_value: float,
+    historicals: dict[str, list[dict]] | None = None,
+) -> tuple[list[SignalResult], RegimeResult]:
+    """
+    Primary scan using Robinhood MCP data.
+    quotes:      {symbol: quote_dict} from get_equity_quotes
+    spy_bars:    daily OHLCV bars for SPY from get_equity_historicals
+    historicals: optional {symbol: bars} from get_equity_historicals per symbol
+                 (provides volume + 52w high + EMA — best signal quality)
+    """
+    spy_changes = _spy_changes_from_bars(spy_bars)
+    regime = classify_regime(spy_changes)
+    spy_today = spy_changes[-1] if spy_changes else 0.0
+
+    results: list[SignalResult] = []
+    for symbol, quote in quotes.items():
+        bars = (historicals or {}).get(symbol, [])
+        result = score_from_bars(symbol, quote, bars, spy_change=spy_today)
+        results.append(result)
+
+    _run_catalyst_gate(results)
+    return filter_candidates(results, min_score=3), regime
+
+
+# ── Standalone CLI path (Finnhub only) ────────────────────────────────────────
+
+def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], RegimeResult]:
+    """
+    Standalone scan using Finnhub quotes + metrics.
+    SPY regime from Finnhub ETF candles falls back to unknown if restricted.
+    EMA called via Alpha Vantage on top-3 pre-filter candidates only.
+    """
+    # Regime: try SPY candles; fall back gracefully if paywalled
+    spy_bars = _finnhub.stock_candles("SPY", days_back=20)
+    spy_changes = _spy_changes_from_bars(spy_bars, days=5)
+    regime = classify_regime(spy_changes)
+    spy_today = spy_changes[-1] if spy_changes else 0.0
+
+    symbols = get_scan_list(account_value)
+    results: list[SignalResult] = []
+
+    for symbol in symbols:
+        fq = _finnhub.current_quote(symbol)
+        if not fq:
+            continue
+        # Normalise Finnhub quote to shape score_quote() expects
+        quote = {
+            "last_trade_price": str(fq.get("c", 0)),
+            "adjusted_previous_close": str(fq.get("pc", 0)),
+        }
+        metrics = _finnhub.stock_metrics(symbol)
+        result = score_from_metrics(symbol, quote, metrics, spy_change=spy_today)
+        results.append(result)
+
+    # EMA via Alpha Vantage — only on top-3 pre-filter candidates (conserves 25/day budget)
+    pre_filter = sorted(results, key=lambda r: r.score, reverse=True)[:3]
+    for r in pre_filter:
+        aligned = _av.ema_aligned(r.symbol)
+        if aligned is not None:
+            was_score = r.score
+            if aligned and "ema_aligned" not in r.signals:
+                r.score += 1
+                r.signals.append("ema_aligned")
+            # Recompute conviction after score change
+            if r.score >= 4:
+                r.conviction = "high"
+            elif r.score == 3:
+                r.conviction = "medium"
+
+    _run_catalyst_gate(results)
+    return filter_candidates(results, min_score=3), regime
+
+
+# ── Shared helpers ─────────────────────────────────────────────────────────────
+
+def _run_catalyst_gate(results: list[SignalResult]) -> None:
+    """Run full catalyst check on score ≥ 2 candidates. Modifies results in place."""
+    for r in results:
+        if r.score >= 2:
+            cat = full_catalyst_check(r.symbol)
+            r.catalyst_clear = cat.clear
+            r.catalyst_detail = cat.detail
+
+
+def print_scan_report(
+    candidates: list[SignalResult],
+    regime: RegimeResult,
+    account_value: float,
+) -> None:
+    from src.risk.risk_manager import position_size
+
+    tag = "OK" if regime.trade_allowed else "HALT"
+    print(f"\n[REGIME:{tag}] {regime.regime.upper()} — {regime.detail}")
+
+    if not regime.trade_allowed:
+        print("No new entries. Monitoring existing positions only.\n")
+        return
+
+    if not candidates:
+        print("\nNo candidates cleared all gates at this time.\n")
+        return
+
+    max_pos = position_size(account_value)
+    print(f"Max position: ${max_pos:.2f}\n")
+    print(f"{'#':<3} {'Symbol':<7} {'Score':<7} {'Conv':<9} {'Signals'}")
+    print("-" * 75)
+    for i, r in enumerate(candidates, 1):
+        print(f"{i:<3} {r.symbol:<7} {r.score}/4{'':<3} {r.conviction:<9} {', '.join(r.signals)}")
+        print(f"    {r.entry_note}  |  Stop -{r.stop_pct:.0%}  Target +{r.target_pct:.0%}  R:R {r.rr_ratio:.1f}x  [{r.instrument} {r.option_type or ''}]")
+        if r.catalyst_detail:
+            print(f"    Catalyst: {r.catalyst_detail}")
+    print()

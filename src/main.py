@@ -26,6 +26,7 @@ from src.risk.risk_manager import (
 )
 from src.signals.learning import learning_report
 from src.signals.regime import RegimeResult
+from src.signals.scanner import print_scan_report, run_scan_standalone
 from src.strategy.watchlist import get_scan_list
 from src.agents.hermes import HermesTask, describe_tasks, is_available, run_task
 
@@ -129,22 +130,15 @@ def cmd_scan(account_value: float, regime: RegimeResult | None = None) -> None:
         print(f"\n[BLOCKED] {check.reason}\n")
         return
 
-    if regime is not None:
-        tag = "OK" if regime.trade_allowed else "HALT"
-        print(f"\n[REGIME:{tag}] {regime.regime.upper()} — {regime.detail}")
-        if not regime.trade_allowed:
-            print("No new entries until regime shifts. Monitoring existing positions only.\n")
-            return
-
+    cfg = load_state()
+    max_contract = account_value * cfg["risk"]["max_option_contract_cost_pct"]
     symbols = get_scan_list(account_value)
-    print(f"\nScanning {len(symbols)} symbols for momentum setups...")
-    print(f"Max position size: ${check.max_dollars:.2f}")
-    if account_value < 150:
-        cfg = load_state()
-        max_contract = account_value * cfg["risk"]["max_option_contract_cost_pct"]
-        print(f"Max contract cost: ${max_contract:.2f}  (${max_contract/100:.2f}/share options)")
-    print("\nSymbols (Tier 2 first — cheap options priority):", ", ".join(symbols))
-    print("\nLive scan runs via agent MCP calls — invoke from Claude Code session.\n")
+
+    print(f"\nScanning {len(symbols)} symbols | Max position: ${check.max_dollars:.2f} | Max contract: ${max_contract:.2f}")
+    print("Fetching Finnhub data...\n")
+
+    candidates, detected_regime = run_scan_standalone(account_value)
+    print_scan_report(candidates, detected_regime, account_value)
 
 
 def cmd_risk_check(account_value: float) -> None:
