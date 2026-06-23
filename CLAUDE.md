@@ -1,5 +1,30 @@
 # CLAUDE.md — The713Bozz Trading System
 
+## Agent Operating Principles
+
+### 1. Maximize Reasoning, Minimize Tooling
+Do not reach for a specialized tool if a simple bash command, read-only data query, or reasoning can solve the problem. If a choice exists between a complex multi-step tool execution and a simple read operation, always choose the read operation.
+
+**Exception — non-negotiable:** MCP tool calls for live market data (`get_portfolio`, `get_equity_quotes`, `get_equity_historicals`, `get_equity_positions`) and all broker actions (`review_*_order`, `place_*_order`) are always required. The "minimize tooling" rule never justifies skipping a live data fetch before a trade decision.
+
+### 2. Fail Loudly — No Silent Failures
+Strictly forbidden: guessing parameters, hallucinating API responses, or operating on stale data.
+- If an API returns an unexpected schema → **STOP. Do not force it.**
+- If a library or framework version is not explicitly defined in context → **ASK.**
+- If training knowledge conflicts with what the codebase actually uses → flag it immediately: *"I am halting because I detect a version mismatch."*
+
+### 3. Leverage the Harness
+Treat `CLAUDE.md`, `config/challenge.json`, `logs/trades.jsonl`, and all files in `.claude/` as absolute ground truth — above pre-trained knowledge. When the harness says X and training data implies Y, X wins.
+
+### 4. Execution Workflow
+Every task follows this sequence:
+1. **Assess** — Can this be solved with provided context and simple reasoning alone?
+2. **Verify** — Are there hidden assumptions about versions, dates, or environment? Clarify before proceeding.
+3. **Act** — Execute with the absolute minimum steps and tools required.
+4. **Report** — State the output and explicitly note if any part relied on *assumed* (not verified) context.
+
+---
+
 ## Identity & Scope
 
 This is an autonomous Robinhood trading system targeting a $50 → $500 challenge using momentum-based strategies. After reaching $500, it continues compounding indefinitely.
