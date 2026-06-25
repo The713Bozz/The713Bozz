@@ -108,6 +108,26 @@ TIER1 = [
 
     # ── Precious metals leveraged ─────────────────────────────────────────────
     "NUGT",
+
+    # ── Federal Reserve — Treasury yield curve ────────────────────────────────
+    # Short end (rate hike/cut sensitivity): SHY tracks 1-3yr, IEF tracks 7-10yr
+    "SHY", "IEF",
+
+    # ── Federal Reserve — Aggregate bond market ───────────────────────────────
+    "BND", "AGG", "LQD", "TIP",
+
+    # ── Federal Reserve — US Dollar (hawkish Fed = strong USD) ────────────────
+    "UUP",
+
+    # ── Federal Reserve — Homebuilders (biggest rate-cut beneficiaries) ────────
+    # DHI and LEN move 5–15% on a single FOMC surprise — highest beta to rate cuts
+    "DHI", "LEN",
+
+    # ── Federal Reserve — Mega-cap regional/money-center banks ────────────────
+    "USB", "PNC", "TFC",
+
+    # ── Federal Reserve — Mortgage REITs (ultra-sensitive to rate spreads) ─────
+    "AGNC", "NLY",
 ]
 
 TIER2 = [
@@ -280,6 +300,36 @@ TIER2 = [
 
     # ── Consumer staples (cyclical rotation) ─────────────────────────────────
     "MNST", "BYND",
+
+    # ── Federal Reserve — Homebuilders (mid-cap, rate-sensitive) ─────────────
+    # Full complex moves together on every CPI/PCE/FOMC print
+    "PHM", "TOL", "KBH", "TMHC", "MHO", "NVR",
+
+    # ── Federal Reserve — Mortgage originators ────────────────────────────────
+    # Rocket and UWM volume explodes when rates drop: refi wave plays
+    "RKT", "UWMC",
+
+    # ── Federal Reserve — Mortgage REITs (expanded) ───────────────────────────
+    "MFA", "TWO", "ARR", "IVR",
+
+    # ── Federal Reserve — Regional banks (rate-spread plays) ──────────────────
+    # Regional banks are the purest play on yield curve steepening
+    "WAL", "ZION", "CFG", "RF", "FITB", "HBAN", "KEY", "MTB", "STT", "BK",
+
+    # ── Federal Reserve — Currency ETFs (policy divergence plays) ─────────────
+    # UDN rises when Fed is dovish (dollar weakens); FXE and FXY for cross-rate
+    "UDN", "FXE", "FXY",
+
+    # ── Federal Reserve — Treasury curve ETFs ────────────────────────────────
+    # ZROZ is 25+ year zero coupon — maximum duration, maximum rate sensitivity
+    "ZROZ", "EDV", "BIL",
+
+    # ── Federal Reserve — Credit market ETFs (risk-on/risk-off proxy) ─────────
+    "EMB", "VCIT", "FLOT",
+
+    # ── Federal Reserve — Rate hedge / volatility instruments ─────────────────
+    # PFIX profits directly from rising long-end rates; IVOL from rate vol spikes
+    "PFIX", "IVOL",
 ]
 
 TIER3 = [
@@ -372,6 +422,10 @@ TIER3 = [
 
     # ── Speculative (next-gen tech, lidar, EV) ────────────────────────────────
     "MVIS", "IDEX", "CTRM",
+
+    # ── Federal Reserve — Leveraged bond plays ────────────────────────────────
+    # TMV is 3x bear on 20yr+ — the rate-spike weapon; SRLN/BKLN float with SOFR
+    "TMV", "SRLN", "BKLN",
 ]
 
 ALL_SYMBOLS = TIER1 + TIER2 + TIER3
@@ -498,8 +552,21 @@ SECTORS = {
                              "DFEN", "WANT", "RETL", "HIBL", "TPOR", "DRN", "EURL", "MIDU", "JNUG"],
     "leveraged_bear":       ["SPXS", "SQQQ", "SOXS", "FAZ", "ERY", "SDOW", "TECS", "LABD",
                              "HIBS", "YANG", "SPXU"],
-    "leveraged_bonds":      ["TMF", "TBT"],
+    "leveraged_bonds":      ["TMF", "TBT", "TMV"],
     "leveraged_single":     ["NVDL", "TSLL", "BITX", "MSTU"],
+
+    # ── Federal Reserve themes (rate policy → sector rotation) ─────────────────
+    "fed_treasury_curve":   ["SHY", "IEF", "TLT", "BND", "AGG", "LQD", "TIP",
+                             "ZROZ", "EDV", "BIL", "VCIT", "FLOT", "EMB",
+                             "TMF", "TBT", "TMV"],
+    "fed_homebuilders":     ["DHI", "LEN", "PHM", "TOL", "KBH", "TMHC", "MHO", "NVR"],
+    "fed_mortgage_reits":   ["AGNC", "NLY", "MFA", "TWO", "ARR", "IVR"],
+    "fed_regional_banks":   ["USB", "PNC", "TFC", "WAL", "ZION", "CFG", "RF",
+                             "FITB", "HBAN", "KEY", "MTB", "STT", "BK"],
+    "fed_mortgage_origin":  ["RKT", "UWMC"],
+    "fed_dollar_currency":  ["UUP", "UDN", "FXE", "FXY"],
+    "fed_rate_hedge":       ["PFIX", "IVOL", "SRLN", "BKLN"],
+    "fed_credit_market":    ["HYG", "JNK", "EMB", "VCIT", "FLOT", "SRLN", "BKLN"],
 
     # ── Speculative ───────────────────────────────────────────────────────────
     "cannabis":             ["SNDL", "TLRY", "ACB", "CGC", "CRON", "IIPR"],
