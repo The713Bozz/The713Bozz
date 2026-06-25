@@ -11,12 +11,14 @@ Two entry points:
   run_scan_standalone(account_value)
       Standalone CLI path (--scan flag). Fetches from Finnhub — no MCP needed.
       3-signal scoring (RS + volume_accumulation + ema_aligned + 52w_high).
-      EMA called via Alpha Vantage on top-3 candidates only (25 req/day limit).
+      EMA called via Alpha Vantage on top-N candidates only (25 req/day limit).
 """
 
 from __future__ import annotations
 
+import json as _json
 from datetime import datetime, timezone
+from pathlib import Path as _Path
 from typing import Optional
 
 from src.data import finnhub as _finnhub
@@ -30,6 +32,28 @@ from src.signals.technical import (
     score_from_metrics,
 )
 from src.strategy.watchlist import get_scan_list
+
+
+def _load_signals_cfg() -> dict:
+    try:
+        p = _Path(__file__).parent.parent.parent / "config" / "challenge.json"
+        with open(p) as _f:
+            return _json.load(_f).get("signals", {})
+    except Exception:
+        return {}
+
+
+def _load_regime_cfg() -> dict:
+    try:
+        p = _Path(__file__).parent.parent.parent / "config" / "challenge.json"
+        with open(p) as _f:
+            return _json.load(_f).get("regime", {})
+    except Exception:
+        return {}
+
+
+_SIG = _load_signals_cfg()
+_REG = _load_regime_cfg()
 
 
 # ── Volume projection helper ──────────────────────────────────────────────────
@@ -108,10 +132,13 @@ def _apply_analyst_signal(result: SignalResult, target_dict: dict) -> None:
     Apply analyst consensus target to an already-scored SignalResult.
     Modifies result in place — call BEFORE catalyst gate and filter.
 
-    +1 signal ("analyst_+X%_target") if consensus mean ≥ 10% above current price.
-    Sets forecast_warning if consensus mean ≥ 10% BELOW current price.
+    +1 signal ("analyst_+X%_target") if consensus mean ≥ threshold above current price.
+    Sets forecast_warning if consensus mean ≥ threshold BELOW current price.
     Re-evaluates breakout_alert and conviction after any score change.
     """
+    upside_threshold = _SIG.get("analyst_upside_threshold", 0.10)
+    filter_min = _SIG.get("filter_min_score", 3)
+
     mean = target_dict.get("target_mean")
     if not mean or result.current_price <= 0:
         return
@@ -120,18 +147,18 @@ def _apply_analyst_signal(result: SignalResult, target_dict: dict) -> None:
     result.forecast_upside_pct = upside
     result.forecast_target = float(mean)
 
-    if upside >= 0.10:
+    if upside >= upside_threshold:
         result.score += 1
         result.signals.append(f"analyst_{upside:+.0%}_target")
         # Recompute conviction
         if result.score >= 4:
             result.conviction = "high"
-        elif result.score == 3:
+        elif result.score >= filter_min:
             result.conviction = "medium"
         # Re-evaluate breakout alert with boosted score
         if result.day_change_pct >= 0.08 and result.score >= 2:
             result.breakout_alert = True
-    elif upside <= -0.10:
+    elif upside <= -upside_threshold:
         result.forecast_warning = (
             f"Analyst target ${mean:.2f} ({upside:.0%} below current) — consensus sees downside"
         )
@@ -150,9 +177,12 @@ def run_scan(
     quotes:      {symbol: quote_dict} from get_equity_quotes
     spy_bars:    daily OHLCV bars for SPY from get_equity_historicals
     historicals: optional {symbol: bars} from get_equity_historicals per symbol
-                 (provides volume + 52w high + EMA — best signal quality)
+                 (provides volume + high + EMA — best signal quality)
     """
-    spy_changes = _spy_changes_from_bars(spy_bars)
+    spy_window = _REG.get("spy_window_days", 5)
+    filter_min = _SIG.get("filter_min_score", 3)
+
+    spy_changes = _spy_changes_from_bars(spy_bars, days=spy_window)
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 
@@ -168,7 +198,7 @@ def run_scan(
         _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
 
     _run_catalyst_gate(results)
-    return filter_candidates(results, min_score=3), regime
+    return filter_candidates(results, min_score=filter_min), regime
 
 
 # ── Standalone CLI path (Finnhub only) ────────────────────────────────────────
@@ -177,11 +207,16 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
     """
     Standalone scan using Finnhub quotes + metrics.
     SPY regime from Finnhub ETF candles falls back to unknown if restricted.
-    EMA called via Alpha Vantage on top-3 pre-filter candidates only.
+    EMA called via Alpha Vantage on top-N pre-filter candidates only.
     """
+    spy_window   = _REG.get("spy_window_days", 5)
+    spy_lookback = _REG.get("spy_lookback_days", 20)
+    av_top_n     = _SIG.get("av_ema_top_n", 3)
+    filter_min   = _SIG.get("filter_min_score", 3)
+
     # Regime: try SPY candles; fall back to current quote if paywalled (Finnhub free tier)
-    spy_bars = _finnhub.stock_candles("SPY", days_back=20)
-    spy_changes = _spy_changes_from_bars(spy_bars, days=5)
+    spy_bars = _finnhub.stock_candles("SPY", days_back=spy_lookback)
+    spy_changes = _spy_changes_from_bars(spy_bars, days=spy_window)
     if not spy_changes:
         spy_q = _finnhub.current_quote("SPY")
         if spy_q and spy_q.get("c") and spy_q.get("pc"):
@@ -205,12 +240,11 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
         result = score_from_metrics(symbol, quote, metrics, spy_change=spy_today)
         results.append(result)
 
-    # EMA via Alpha Vantage — only on top-3 pre-filter candidates (conserves 25/day budget)
-    pre_filter = sorted(results, key=lambda r: r.score, reverse=True)[:3]
+    # EMA via Alpha Vantage — only on top-N pre-filter candidates (conserves 25/day budget)
+    pre_filter = sorted(results, key=lambda r: r.score, reverse=True)[:av_top_n]
     for r in pre_filter:
         aligned = _av.ema_aligned(r.symbol)
         if aligned is not None:
-            was_score = r.score
             if aligned and "ema_aligned" not in r.signals:
                 r.score += 1
                 r.signals.append("ema_aligned")
@@ -225,15 +259,16 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
         _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
 
     _run_catalyst_gate(results)
-    return filter_candidates(results, min_score=3), regime
+    return filter_candidates(results, min_score=filter_min), regime
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 def _run_catalyst_gate(results: list[SignalResult]) -> None:
-    """Run full catalyst check on score ≥ 2 candidates. Modifies results in place."""
+    """Run full catalyst check on score ≥ threshold candidates. Modifies results in place."""
+    gate_min = _SIG.get("catalyst_gate_min_score", 2)
     for r in results:
-        if r.score >= 2:
+        if r.score >= gate_min:
             cat = full_catalyst_check(r.symbol)
             r.catalyst_clear = cat.clear
             r.catalyst_detail = cat.detail
@@ -246,6 +281,10 @@ def print_scan_report(
 ) -> None:
     from src.risk.risk_manager import position_size
 
+    upside_threshold = _SIG.get("analyst_upside_threshold", 0.10)
+    filter_min       = _SIG.get("filter_min_score", 3)
+    brk_alert        = _SIG.get("breakout_alert_pct", 0.08)
+
     tag = "OK" if regime.trade_allowed else "HALT"
     print(f"\n[REGIME:{tag}] {regime.regime.upper()} — {regime.detail}")
 
@@ -254,8 +293,8 @@ def print_scan_report(
         return
 
     # Separate clean 3/4+ candidates from breakout alerts (2/4 but ≥8% on the day)
-    clean = [r for r in candidates if r.score >= 3]
-    alerts = [r for r in candidates if r.breakout_alert and r.score < 3]
+    clean = [r for r in candidates if r.score >= filter_min]
+    alerts = [r for r in candidates if r.breakout_alert and r.score < filter_min]
 
     max_pos = position_size(account_value) * regime.position_scale
     scale_note = "  ⚠ RANGING: half-size entries" if regime.position_scale < 1.0 else ""
@@ -269,7 +308,7 @@ def print_scan_report(
             print(f"    {r.entry_note}  |  Stop -{r.stop_pct:.0%}  Target +{r.target_pct:.0%}  R:R {r.rr_ratio:.1f}x  [{r.instrument} {r.option_type or ''}]")
             if r.catalyst_detail:
                 print(f"    Catalyst: {r.catalyst_detail}")
-            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= 0.10:
+            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= upside_threshold:
                 print(f"    Forecast: ${r.forecast_target:.2f} ({r.forecast_upside_pct:+.0%} analyst consensus upside)")
             if r.forecast_warning:
                 print(f"    ⚠  {r.forecast_warning}")
@@ -278,12 +317,12 @@ def print_scan_report(
         print("No 3/4+ candidates at this time.\n")
 
     if alerts:
-        print("--- BREAKOUT ALERTS (≥8% move, 2+ signals — review for entry) ---")
+        print(f"--- BREAKOUT ALERTS (≥{brk_alert:.0%} move, 2+ signals — review for entry) ---")
         for r in alerts:
             print(f"  !! {r.symbol:<6} {r.score}/4  {r.entry_note}  [{', '.join(r.signals)}]")
             if r.catalyst_detail:
                 print(f"     Catalyst: {r.catalyst_detail}")
-            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= 0.10:
+            if r.forecast_upside_pct is not None and r.forecast_upside_pct >= upside_threshold:
                 print(f"     Forecast: ${r.forecast_target:.2f} ({r.forecast_upside_pct:+.0%} upside)")
             if r.forecast_warning:
                 print(f"     ⚠  {r.forecast_warning}")

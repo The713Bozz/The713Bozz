@@ -1,8 +1,8 @@
 {
   "challenge": {
-    "start_balance": 50.00,
-    "phase1_target": 500.00,
-    "ultimate_target": 5000000.00,
+    "start_balance": 50.0,
+    "phase1_target": 500.0,
+    "ultimate_target": 5000000.0,
     "phase": 1,
     "started_at": "2026-06-17T00:00:00Z",
     "completed_at": null,
@@ -16,15 +16,15 @@
     "options_enabled": true
   },
   "risk": {
-    "max_risk_per_trade_pct": 0.20,
-    "max_option_risk_per_trade_pct": 0.30,
-    "max_option_contract_cost_pct": 0.30,
-    "max_daily_drawdown_pct": 0.30,
+    "max_risk_per_trade_pct": 0.2,
+    "max_option_risk_per_trade_pct": 0.3,
+    "max_option_contract_cost_pct": 0.3,
+    "max_daily_drawdown_pct": 0.3,
     "circuit_breaker_consecutive_losses": 3,
     "min_rr_ratio": 2.0,
-    "min_option_ask": 0.10,
-    "min_bid_ask_ratio": 0.60,
-    "max_single_equity_pct": 0.20
+    "min_option_ask": 0.1,
+    "min_bid_ask_ratio": 0.6,
+    "max_single_equity_pct": 0.2
   },
   "pdt": {
     "day_trades_used": 0,
@@ -33,7 +33,7 @@
   },
   "state": {
     "consecutive_losses": 0,
-    "day_open_value": 50.00,
+    "day_open_value": 49.97,
     "daily_halted": false,
     "circuit_breaker_halted": false,
     "total_trades": 0,
@@ -41,15 +41,51 @@
     "losing_trades": 0
   },
   "milestones": {
-    "m1": {"label": "$50 → $100",         "target": 100.00,     "reached_at": null},
-    "m2": {"label": "$100 → $250",         "target": 250.00,     "reached_at": null},
-    "m3": {"label": "$250 → $500",         "target": 500.00,     "reached_at": null},
-    "m4": {"label": "$500 → $1,000",       "target": 1000.00,    "reached_at": null},
-    "m5": {"label": "$1,000 → $5,000",     "target": 5000.00,    "reached_at": null},
-    "m6": {"label": "$5,000 → $25,000",    "target": 25000.00,   "reached_at": null},
-    "m7": {"label": "$25,000 → $100,000",  "target": 100000.00,  "reached_at": null},
-    "m8": {"label": "$100,000 → $500,000", "target": 500000.00,  "reached_at": null},
-    "m9": {"label": "$500,000 → $5M",      "target": 5000000.00, "reached_at": null}
+    "m1": {
+      "label": "$50 \u2192 $100",
+      "target": 100.0,
+      "reached_at": null
+    },
+    "m2": {
+      "label": "$100 \u2192 $250",
+      "target": 250.0,
+      "reached_at": null
+    },
+    "m3": {
+      "label": "$250 \u2192 $500",
+      "target": 500.0,
+      "reached_at": null
+    },
+    "m4": {
+      "label": "$500 \u2192 $1,000",
+      "target": 1000.0,
+      "reached_at": null
+    },
+    "m5": {
+      "label": "$1,000 \u2192 $5,000",
+      "target": 5000.0,
+      "reached_at": null
+    },
+    "m6": {
+      "label": "$5,000 \u2192 $25,000",
+      "target": 25000.0,
+      "reached_at": null
+    },
+    "m7": {
+      "label": "$25,000 \u2192 $100,000",
+      "target": 100000.0,
+      "reached_at": null
+    },
+    "m8": {
+      "label": "$100,000 \u2192 $500,000",
+      "target": 500000.0,
+      "reached_at": null
+    },
+    "m9": {
+      "label": "$500,000 \u2192 $5M",
+      "target": 5000000.0,
+      "reached_at": null
+    }
   },
   "instruments": {
     "prefer_options": true,
@@ -58,7 +94,39 @@
     "option_dte_min": 7,
     "option_dte_min_pdt_pressure": 14,
     "option_dte_max": 45,
-    "option_delta_min": 0.20,
-    "option_delta_max": 0.45
+    "option_delta_min": 0.2,
+    "option_delta_max": 0.45,
+    "option_max_contracts": 5
+  },
+  "signals": {
+    "rs_min_day_change": 0.03,
+    "rs_min_vs_spy": 0.02,
+    "volume_surge_multiplier": 1.5,
+    "volume_accumulation_multiplier": 1.2,
+    "high_proximity_pct": 0.9,
+    "strong_breakout_with_high_pct": 0.05,
+    "strong_breakout_no_high_pct": 0.07,
+    "breakout_alert_pct": 0.08,
+    "option_price_threshold": 5.0,
+    "option_stop_pct": 0.5,
+    "option_target_pct": 1.5,
+    "equity_stop_pct": 0.08,
+    "equity_target_pct": 0.25,
+    "analyst_upside_threshold": 0.1,
+    "ema_short_period": 9,
+    "ema_long_period": 21,
+    "volume_avg_window_days": 14,
+    "high_3m_bars": 63,
+    "av_ema_top_n": 3,
+    "catalyst_gate_min_score": 2,
+    "filter_min_score": 3
+  },
+  "regime": {
+    "volatile_avg_abs_threshold": 0.015,
+    "bear_avg_threshold": -0.003,
+    "bull_avg_threshold": 0.003,
+    "ranging_position_scale": 0.5,
+    "spy_window_days": 5,
+    "spy_lookback_days": 20
   }
 }

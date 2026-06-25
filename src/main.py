@@ -21,6 +21,7 @@ from src.risk.risk_manager import (
     check_trade_allowed,
     load_state,
     record_trade_result,
+    refresh_day_open,
     reset_circuit_breaker,
     reset_daily,
 )
@@ -287,6 +288,9 @@ def cmd_session_start(account_value):
                and datetime.time(9, 30) <= now.time() <= datetime.time(16, 0))
     print(f"Session start: {now.strftime('%Y-%m-%d %H:%M')} ET "
           f"({'market open' if is_open else 'market closed'})")
+    # Refresh day_open_value so drawdown guard uses today's actual opening value,
+    # not the stale value from a prior session stored in challenge.json.
+    refresh_day_open(account_value)
     cmd_status(account_value)
     if is_open:
         print("\nMarket is open - running watchlist scan...\n")

@@ -5,7 +5,7 @@ Tier 1: High-liquidity, heavily traded — sector leaders + index/leveraged ETFs
 Tier 2: Mid-range, high-volatility — fractional equity or cheap options at $50–$150
 Tier 3: Speculative, event-driven, leveraged sector plays (1 position max)
 
-~480 symbols across 45 sectors. Scanner catches momentum ANYWHERE in the market.
+576 symbols across 91 sectors. Scanner catches momentum ANYWHERE in the market.
 """
 
 TIER1 = [
@@ -544,7 +544,7 @@ SECTORS = {
                              "SOFI", "PLTR", "HOOD", "COIN", "AFRM", "PYPL", "SQ", "NU", "LC", "FUTU"],
     "investment_banks":     ["GS", "MS", "BX", "JPM", "C"],
     "financial_services":   ["SCHW", "CME", "CBOE", "ICE", "FISV", "FIS", "GPN", "IBKR", "ALLY", "APO"],
-    "insurance":            ["PRU", "MET"],
+    "insurance":            ["PRU", "MET", "PGR", "AFL", "ALL", "CINF", "MKL", "KIE", "IAK"],
     "banks_etf":            ["KBE", "KRE", "FAS", "FAZ"],
 
     # ── Industrials / Transport ────────────────────────────────────────────────
@@ -641,7 +641,7 @@ SECTORS = {
     "fed_homebuilders":     ["DHI", "LEN", "PHM", "TOL", "KBH", "TMHC", "MHO", "NVR"],
     "fed_mortgage_reits":   ["AGNC", "NLY", "MFA", "TWO", "ARR", "IVR"],
     "fed_regional_banks":   ["USB", "PNC", "TFC", "WAL", "ZION", "CFG", "RF",
-                             "FITB", "HBAN", "KEY", "MTB", "STT", "BK"],
+                             "FITB", "HBAN", "KEY", "MTB", "STT", "BK", "FHN", "EWBC", "WBS"],
     "fed_mortgage_origin":  ["RKT", "UWMC"],
     "fed_dollar_currency":  ["UUP", "UDN", "FXE", "FXY"],
     "fed_rate_hedge":       ["PFIX", "IVOL", "SRLN", "BKLN"],
@@ -655,8 +655,7 @@ SECTORS = {
     "fed_mortgage_svc":     ["COOP", "PFSI", "PMT"],
     "fed_insurance":        ["PGR", "AFL", "ALL", "PRU", "MET", "CINF", "MKL", "KIE", "IAK"],
     "fed_asset_managers":   ["BLK", "TROW", "IVZ", "BEN", "SEIC", "SCHW", "IBKR"],
-    "fed_regional_banks+":  ["WAL", "ZION", "CFG", "RF", "FITB", "HBAN", "KEY", "MTB",
-                             "STT", "BK", "FHN", "EWBC", "WBS"],
+    # fed_regional_banks+ merged into fed_regional_banks above
     "fed_treasury_short":   ["SHV", "SGOV", "BIL", "SHY"],
     "fed_treasury_long":    ["TLT", "ZROZ", "EDV", "VGLT", "GOVT"],
     "fed_tips":             ["TIP", "VTIP", "STIP", "SCHP"],
@@ -688,10 +687,10 @@ def get_scan_list(account_value: float, include_tier3: bool = False) -> list[str
     if include_tier3:
         symbols += TIER3
     else:
-        # Commodity, rate, and leveraged sector plays — always scan, never miss rotation
-        symbols += ["GLD", "GDX", "SLV", "USO", "LABU", "TNA", "DPST", "TLT", "BOIL", "GUSH",
-                    "HYG", "XLV", "XLE", "XLF", "XLI"]
-    return symbols
+        # Key T3 rotation markers — commodity, rate, vol, and leveraged sector plays.
+        # XLV/XLE/XLF/XLI are already in TIER1; omit them here to avoid duplicate scoring.
+        symbols += ["GLD", "GDX", "SLV", "USO", "LABU", "TNA", "DPST", "TLT", "BOIL", "GUSH", "HYG"]
+    return list(dict.fromkeys(symbols))  # preserve order, deduplicate any remaining overlap
 
 
 def get_sector_symbols(sector: str) -> list[str]:

@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
+from typing import Optional
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "challenge.json"
 LOG_PATH = Path(__file__).parent.parent.parent / "logs" / "trades.jsonl"
@@ -92,9 +93,11 @@ def position_size(account_value: float) -> float:
 
 
 def option_contracts(account_value: float, option_price: float) -> int:
+    cfg = load_state()
+    max_contracts = cfg["instruments"].get("option_max_contracts", 5)
     dollars = position_size(account_value)
     contracts = int(dollars / (option_price * 100))
-    return max(1, min(contracts, 5))
+    return max(1, min(contracts, max_contracts))
 
 
 def check_option_liquidity(bid: float, ask: float) -> RiskCheck:
@@ -213,7 +216,7 @@ def required_dte(pdt_trades_used: int, weekday: int = -1) -> int:
     pressure_dte = cfg["instruments"].get("option_dte_min_pdt_pressure", 14)
 
     if weekday == -1:
-        weekday = datetime.utcnow().weekday()
+        weekday = datetime.now(timezone.utc).weekday()
 
     is_late_week = weekday >= 3  # Thursday or Friday
     pdt_near_limit = pdt_trades_used >= 2
@@ -222,6 +225,54 @@ def required_dte(pdt_trades_used: int, weekday: int = -1) -> int:
         return pressure_dte
 
     return base_dte
+
+
+def _pdt_business_days_since(start_date_str: str) -> int:
+    """Count business days elapsed from start_date_str (YYYY-MM-DD) through yesterday."""
+    try:
+        start = date.fromisoformat(start_date_str)
+    except (ValueError, TypeError):
+        return 999  # Unparseable — treat as expired
+    today = datetime.now(timezone.utc).date()
+    count = 0
+    d = start
+    while d < today:
+        if d.weekday() < 5:  # Mon–Fri
+            count += 1
+        d += timedelta(days=1)
+    return count
+
+
+def increment_day_trade() -> None:
+    """Record one day trade against the rolling 5-business-day PDT window."""
+    cfg = load_state()
+    pdt = cfg["pdt"]
+    today_str = datetime.now(timezone.utc).date().isoformat()
+
+    # Expire window if ≥5 business days have elapsed since it started
+    if pdt.get("rolling_window_start"):
+        if _pdt_business_days_since(pdt["rolling_window_start"]) >= 5:
+            pdt["day_trades_used"] = 0
+            pdt["rolling_window_start"] = None
+
+    # Start window on first trade of the period
+    if not pdt.get("rolling_window_start"):
+        pdt["rolling_window_start"] = today_str
+
+    pdt["day_trades_used"] += 1
+    save_state(cfg)
+
+
+def refresh_day_open(account_value: float) -> None:
+    """
+    Update day_open_value from the live account at session start.
+    Also clears the daily_halted flag so a new session can trade.
+    Does NOT reset PDT counter — that uses its own rolling window.
+    """
+    cfg = load_state()
+    cfg["state"]["daily_halted"] = False
+    cfg["state"]["day_open_value"] = account_value
+    save_state(cfg)
 
 
 def check_trade_allowed(account_value: float) -> RiskCheck:
@@ -246,8 +297,15 @@ def check_trade_allowed(account_value: float) -> RiskCheck:
         return RiskCheck(False, f"Daily drawdown {drawdown:.1%} exceeded {risk['max_daily_drawdown_pct']:.0%} limit.")
 
     pdt = cfg["pdt"]
-    if pdt["halt_if_pdt_risk"] and account_value < 25000 and pdt["day_trades_used"] >= 3:
-        return RiskCheck(False, "PDT limit: 3 day trades used this week. Cannot day trade again without risking PDT flag.")
+    if pdt["halt_if_pdt_risk"] and account_value < 25000:
+        # Respect the rolling 5-business-day window: if the window has expired,
+        # the recorded count is stale and cannot be used to block trading.
+        trades_in_window = pdt["day_trades_used"]
+        if pdt.get("rolling_window_start"):
+            if _pdt_business_days_since(pdt["rolling_window_start"]) >= 5:
+                trades_in_window = 0  # Window expired — count resets at next increment_day_trade()
+        if trades_in_window >= 3:
+            return RiskCheck(False, "PDT limit: 3 day trades used in the rolling 5-business-day window. Cannot day trade again without risking PDT flag.")
 
     max_dollars = position_size(account_value)
     return RiskCheck(True, "All checks passed.", max_dollars=max_dollars)
@@ -267,7 +325,7 @@ def record_trade_result(won: bool, account_value: float) -> None:
         if state["consecutive_losses"] >= cfg["risk"]["circuit_breaker_consecutive_losses"]:
             state["circuit_breaker_halted"] = True
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     if get_phase(account_value) == 2 and cfg["challenge"]["phase"] == 1:
         cfg["challenge"]["phase"] = 2
         cfg["challenge"]["completed_at"] = now
@@ -301,7 +359,7 @@ def reset_daily(account_value: float) -> None:
 
 def log_trade(entry: dict) -> None:
     LOG_PATH.parent.mkdir(exist_ok=True)
-    entry["logged_at"] = datetime.utcnow().isoformat()
+    entry["logged_at"] = datetime.now(timezone.utc).isoformat()
     with open(LOG_PATH, "a") as f:
         f.write(json.dumps(entry) + "\n")
 

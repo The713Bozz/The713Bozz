@@ -1,5 +1,19 @@
+import json as _json
 from dataclasses import dataclass, field
+from pathlib import Path as _Path
 from typing import Optional
+
+
+def _load_signals_cfg() -> dict:
+    try:
+        p = _Path(__file__).parent.parent.parent / "config" / "challenge.json"
+        with open(p) as _f:
+            return _json.load(_f).get("signals", {})
+    except Exception:
+        return {}
+
+
+_SIG = _load_signals_cfg()
 
 
 @dataclass
@@ -57,6 +71,7 @@ def score_quote(
     avg_vol_10d: Optional[float] = None,
     avg_vol_3m: Optional[float] = None,
     high_3m: Optional[float] = None,
+    high_label: str = "near_52w_high",
 ) -> SignalResult:
     """
     Score a symbol against the Momentum Compounder signal stack.
@@ -67,9 +82,24 @@ def score_quote(
                   used in standalone CLI mode where today's intraday volume is unavailable)
 
     Signals are SKIPPED (not penalised) when enrichment data is absent.
+    high_label: label to use for the near-high signal (caller sets based on actual bar span).
     """
     signals = []
     score = 0
+
+    rs_min_day   = _SIG.get("rs_min_day_change", 0.03)
+    rs_min_spy   = _SIG.get("rs_min_vs_spy", 0.02)
+    vol_surge    = _SIG.get("volume_surge_multiplier", 1.5)
+    vol_accum    = _SIG.get("volume_accumulation_multiplier", 1.2)
+    high_prox    = _SIG.get("high_proximity_pct", 0.90)
+    brk_high     = _SIG.get("strong_breakout_with_high_pct", 0.05)
+    brk_no_high  = _SIG.get("strong_breakout_no_high_pct", 0.07)
+    brk_alert    = _SIG.get("breakout_alert_pct", 0.08)
+    opt_thresh   = _SIG.get("option_price_threshold", 5.0)
+    opt_stop     = _SIG.get("option_stop_pct", 0.50)
+    opt_target   = _SIG.get("option_target_pct", 1.50)
+    eq_stop      = _SIG.get("equity_stop_pct", 0.08)
+    eq_target    = _SIG.get("equity_target_pct", 0.25)
 
     try:
         price = float(quote.get("last_trade_price") or quote.get("ask_price") or quote.get("c", 0))
@@ -87,19 +117,19 @@ def score_quote(
     day_change_pct = (price - prev_close) / prev_close
 
     # 1. Relative strength vs SPY
-    if day_change_pct >= 0.03 or (day_change_pct - spy_change) >= 0.02:
+    if day_change_pct >= rs_min_day or (day_change_pct - spy_change) >= rs_min_spy:
         score += 1
         signals.append("relative_strength")
 
     # 2. Volume signal — two modes depending on available data
     if volume is not None and avg_volume is not None and avg_volume > 0:
-        # Primary: today's volume vs 14d avg (MCP historicals path)
-        if volume >= avg_volume * 1.5:
+        # Primary: today's volume vs N-day avg (MCP historicals path)
+        if volume >= avg_volume * vol_surge:
             score += 1
             signals.append("volume_surge")
     elif avg_vol_10d is not None and avg_vol_3m is not None and avg_vol_3m > 0:
         # Fallback: 10d avg vs 3m avg — accumulation signal (standalone path)
-        if avg_vol_10d >= avg_vol_3m * 1.2:
+        if avg_vol_10d >= avg_vol_3m * vol_accum:
             score += 1
             signals.append("volume_accumulation")
 
@@ -108,35 +138,31 @@ def score_quote(
         score += 1
         signals.append("ema_aligned")
 
-    # 4. High proximity — 52w high first; 3m high as recovery breakout fallback;
-    #    then magnitude breakout. This lets fallen stocks that are reclaiming their
-    #    recent range score the signal even when the 52w peak is far above.
+    # 4. High proximity — labeled by caller (actual bar span, not assumed 52w).
+    #    3m high as recovery breakout fallback; then magnitude breakout.
     if high_52w is not None and high_52w > 0:
-        if price >= high_52w * 0.90:
+        if price >= high_52w * high_prox:
             score += 1
-            signals.append("near_52w_high")
-        elif high_3m is not None and high_3m > 0 and price >= high_3m * 0.90:
-            # Near 3-month high — recovery breakout reclaiming recent range
+            signals.append(high_label)
+        elif high_3m is not None and high_3m > 0 and price >= high_3m * high_prox:
             score += 1
             signals.append("near_3m_high")
-        elif day_change_pct >= 0.05:
+        elif day_change_pct >= brk_high:
             score += 1
             signals.append("strong_breakout")
-    elif day_change_pct >= 0.07:
+    elif day_change_pct >= brk_no_high:
         score += 1
         signals.append("strong_breakout")
 
-    instrument = "option" if price >= 5.0 else "equity"
+    instrument = "option" if price >= opt_thresh else "equity"
     option_type = "call" if day_change_pct >= 0 else "put"
-    stop_pct = 0.50 if instrument == "option" else 0.08
-    target_pct = 1.50 if instrument == "option" else 0.25
+    stop_pct = opt_stop if instrument == "option" else eq_stop
+    target_pct = opt_target if instrument == "option" else eq_target
 
     vol_note = f", Vol {volume/avg_volume:.1f}x" if (volume and avg_volume) else ""
     ema_note = " EMA✓" if ema_aligned else ""
 
-    # Breakout alert: stock up ≥8% with 2+ signals. Surface even below 3/4 threshold
-    # so news-driven explosions are never silently dropped from the report.
-    breakout_alert = day_change_pct >= 0.08 and score >= 2
+    breakout_alert = day_change_pct >= brk_alert and score >= 2
 
     return SignalResult(
         symbol=symbol,
@@ -173,6 +199,7 @@ def score_from_metrics(
         ema_aligned=ema_aligned,
         avg_vol_10d=metrics.get("avg_vol_10d"),
         avg_vol_3m=metrics.get("avg_vol_3m"),
+        high_label="near_52w_high",  # Finnhub metrics always report the true 52w high
     )
 
 
@@ -189,28 +216,37 @@ def score_from_bars(
     today_volume: projected full-day volume for the current session (caller
                   scales the partial bar before passing). If None, bars[-1]["v"]
                   is used as-is — correct when bars are complete daily bars.
+
+    The high label reflects actual bar span: "near_52w_high" only when ≥252 bars
+    are available; otherwise "near_{n}d_high" so the signal name is truthful.
     """
     volume: Optional[float] = None
     avg_volume: Optional[float] = None
     high_52w: Optional[float] = None
     ema_aligned: Optional[bool] = None
-
     high_3m: Optional[float] = None
+
+    vol_window   = _SIG.get("volume_avg_window_days", 14)
+    ema_short    = _SIG.get("ema_short_period", 9)
+    ema_long     = _SIG.get("ema_long_period", 21)
+    high_3m_bars = _SIG.get("high_3m_bars", 63)
 
     if bars:
         volume = today_volume if today_volume is not None else float(bars[-1]["v"])
-        if len(bars) >= 15:
-            avg_volume = sum(b["v"] for b in bars[-15:-1]) / 14
+        if len(bars) >= vol_window + 1:
+            avg_volume = sum(b["v"] for b in bars[-(vol_window + 1):-1]) / vol_window
         high_52w = max(b["h"] for b in bars)
-        # 3-month high (~63 trading days) — catches recovery breakouts in fallen stocks
-        if len(bars) >= 63:
-            high_3m = max(b["h"] for b in bars[-63:])
+        if len(bars) >= high_3m_bars:
+            high_3m = max(b["h"] for b in bars[-high_3m_bars:])
 
         closes = [b["c"] for b in bars]
-        ema9 = compute_ema(closes, 9)
-        ema21 = compute_ema(closes, 21)
+        ema9 = compute_ema(closes, ema_short)
+        ema21 = compute_ema(closes, ema_long)
         if ema9 is not None and ema21 is not None:
             ema_aligned = ema9 > ema21
+
+    # Label truthfully: only call it "52w" when we actually have ≥252 bars.
+    high_label = "near_52w_high" if len(bars) >= 252 else f"near_{len(bars)}d_high"
 
     return score_quote(
         symbol=symbol,
@@ -221,6 +257,7 @@ def score_from_bars(
         high_52w=high_52w,
         ema_aligned=ema_aligned,
         high_3m=high_3m,
+        high_label=high_label,
     )
 
 
