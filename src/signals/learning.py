@@ -136,14 +136,14 @@ def learning_report(log_path: Path = LOG_PATH) -> str:
         lines.append("Signal win rates:")
         for sig, d in by_signal.items():
             bar = "█" * round(d["win_rate"] * 10)
-            lines.append(f"  {sig:<25}  {d['win_rate']:.0%}  {bar}  ({d['wins']}/{d['total']})")
+            lines.append(f"  {sig:<25}  {d['win_rate']:.0%}  {bar}  ({round(d['win_rate'] * d['total'])}/{d['total']})")
         lines.append("")
 
     by_combo = win_rate_by_combination(log_path)
     if "_status" not in by_combo:
         lines.append("Top signal combinations:")
         for combo, d in list(by_combo.items())[:5]:
-            lines.append(f"  {d['win_rate']:.0%}  {combo}  ({d['wins']}/{d['total']})")
+            lines.append(f"  {d['win_rate']:.0%}  {combo}  ({round(d['win_rate'] * d['total'])}/{d['total']})")
     else:
         lines.append(by_combo["_status"])
 

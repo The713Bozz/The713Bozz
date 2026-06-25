@@ -73,7 +73,7 @@ Use fractional shares if needed
 ```python
 account_value = get_portfolio()
 phase = 1 if account_value < 500 else 2
-max_risk_pct = 0.20 if phase == 1 else 0.10
+max_risk_pct = 0.20 if phase == 1 else 0.20
 risk_dollars = account_value * max_risk_pct
 
 # For options:
