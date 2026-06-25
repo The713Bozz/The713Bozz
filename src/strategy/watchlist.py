@@ -2,23 +2,48 @@
 Default watchlist for the Momentum Compounder challenge.
 
 Tier 1: High-liquidity momentum names — options accessible at $250+ account
-Tier 2: $5–$50 range, high IV — 1 contract affordable at $50–$150 account (fast path)
-Tier 3: Speculative / squeeze candidates (1 position max)
+Tier 2: Mid-range, high-volatility — fractional equity or cheap options at $50–$150 account
+Tier 3: Speculative / squeeze / leveraged candidates (1 position max)
 """
 
 TIER1 = [
+    # Mega-cap tech + ETFs
     "NVDA", "TSLA", "AMD", "MSTR", "SMCI",
     "SPY", "QQQ", "AAPL", "META", "GOOGL",
+    # Financials + defense + energy (sector rotation targets)
+    "JPM", "LMT", "XOM",
+    # Semiconductor IP + China tech
+    "ARM", "BABA",
 ]
 
 TIER2 = [
-    "SOFI", "PLTR", "RIVN", "NIO", "IONQ",
-    "RKLB", "SOUN", "BBAI", "ARQQ", "QUBT",
-    "MARA", "RIOT", "ACHR", "OKLO", "HOOD",
+    # Fintech / broker
+    "SOFI", "PLTR", "HOOD", "COIN",
+    # EV / mobility
+    "RIVN", "NIO", "ACHR",
+    # Quantum computing
+    "IONQ", "ARQQ", "QUBT",
+    # Space / defense
+    "RKLB",
+    # AI / voice / small-cap tech
+    "SOUN", "BBAI",
+    # Crypto mining
+    "MARA", "RIOT",
+    # Nuclear / energy
+    "OKLO", "OXY",
+    # Biotech (catalyst-driven 10–30% moves)
+    "MRNA", "NVAX",
+    # China ADRs (high volatility)
+    "PDD", "BIDU",
+    # Leveraged ETFs (3x amplification — daily momentum plays)
+    "SOXL", "TQQQ",
 ]
 
 TIER3 = [
+    # Meme / squeeze
     "GME", "AMC",
+    # VIX leveraged — fear spikes only
+    "UVXY",
 ]
 
 ALL_SYMBOLS = TIER1 + TIER2 + TIER3

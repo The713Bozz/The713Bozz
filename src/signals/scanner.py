@@ -179,9 +179,13 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
     SPY regime from Finnhub ETF candles falls back to unknown if restricted.
     EMA called via Alpha Vantage on top-3 pre-filter candidates only.
     """
-    # Regime: try SPY candles; fall back gracefully if paywalled
+    # Regime: try SPY candles; fall back to current quote if paywalled (Finnhub free tier)
     spy_bars = _finnhub.stock_candles("SPY", days_back=20)
     spy_changes = _spy_changes_from_bars(spy_bars, days=5)
+    if not spy_changes:
+        spy_q = _finnhub.current_quote("SPY")
+        if spy_q and spy_q.get("c") and spy_q.get("pc"):
+            spy_changes = [(spy_q["c"] - spy_q["pc"]) / spy_q["pc"]]
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 

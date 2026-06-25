@@ -1,7 +1,25 @@
 {
-  "tier1": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL"],
-  "tier2": ["SOFI", "PLTR", "RIVN", "NIO", "IONQ", "RKLB", "SOUN", "BBAI", "ARQQ", "QUBT", "MARA", "RIOT", "ACHR", "OKLO", "HOOD"],
-  "tier3": ["GME", "AMC"],
-  "all": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL", "SOFI", "PLTR", "RIVN", "NIO", "IONQ", "RKLB", "SOUN", "BBAI", "ARQQ", "QUBT", "MARA", "RIOT", "ACHR", "OKLO", "HOOD", "GME", "AMC"],
-  "last_updated": "2026-06-24"
+  "tier1": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL", "JPM", "LMT", "XOM", "ARM", "BABA"],
+  "tier2": ["SOFI", "PLTR", "HOOD", "COIN", "RIVN", "NIO", "ACHR", "IONQ", "ARQQ", "QUBT", "RKLB", "SOUN", "BBAI", "MARA", "RIOT", "OKLO", "OXY", "MRNA", "NVAX", "PDD", "BIDU", "SOXL", "TQQQ"],
+  "tier3": ["GME", "AMC", "UVXY"],
+  "all": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL", "JPM", "LMT", "XOM", "ARM", "BABA", "SOFI", "PLTR", "HOOD", "COIN", "RIVN", "NIO", "ACHR", "IONQ", "ARQQ", "QUBT", "RKLB", "SOUN", "BBAI", "MARA", "RIOT", "OKLO", "OXY", "MRNA", "NVAX", "PDD", "BIDU", "SOXL", "TQQQ", "GME", "AMC", "UVXY"],
+  "sectors": {
+    "mega_cap_tech": ["NVDA", "TSLA", "AMD", "AAPL", "META", "GOOGL", "MSTR", "SMCI"],
+    "etf": ["SPY", "QQQ", "SOXL", "TQQQ"],
+    "financials": ["JPM", "SOFI", "PLTR", "HOOD", "COIN"],
+    "defense": ["LMT"],
+    "energy": ["XOM", "OXY"],
+    "semiconductor": ["NVDA", "AMD", "SMCI", "ARM", "SOXL"],
+    "quantum": ["IONQ", "ARQQ", "QUBT"],
+    "biotech": ["MRNA", "NVAX"],
+    "ev_mobility": ["TSLA", "RIVN", "NIO", "ACHR"],
+    "crypto": ["MSTR", "MARA", "RIOT", "COIN"],
+    "china_adr": ["BABA", "PDD", "BIDU"],
+    "space_defense": ["RKLB", "LMT"],
+    "nuclear": ["OKLO"],
+    "ai_small_cap": ["SOUN", "BBAI"],
+    "leveraged_etf": ["SOXL", "TQQQ"],
+    "speculative": ["GME", "AMC", "UVXY"]
+  },
+  "last_updated": "2026-06-25"
 }
