@@ -128,6 +128,26 @@ TIER1 = [
 
     # ── Federal Reserve — Mortgage REITs (ultra-sensitive to rate spreads) ─────
     "AGNC", "NLY",
+
+    # ── Federal Reserve — Homebuilder ETFs (single best FOMC reaction proxy) ──
+    # ITB and XHB move 5–10% on CPI surprise — faster signal than individual names
+    "ITB", "XHB",
+
+    # ── Federal Reserve — REIT ETF (rate-cut beneficiary basket) ─────────────
+    "VNQ",
+
+    # ── Federal Reserve — Asset managers (AUM fees rise with market, NIMs rise) ─
+    "BLK", "TROW", "IVZ",
+
+    # ── Federal Reserve — Insurance (float invested at higher yields) ─────────
+    "PGR", "AFL", "ALL",
+
+    # ── Federal Reserve — KBW Bank ETF (pure bank earnings play) ─────────────
+    "KBWB",
+
+    # ── Federal Reserve — Building materials (housing supply chain) ───────────
+    # MLM and VMC (aggregates) surge when rate-cut cycle ignites construction
+    "MLM", "VMC",
 ]
 
 TIER2 = [
@@ -330,6 +350,49 @@ TIER2 = [
     # ── Federal Reserve — Rate hedge / volatility instruments ─────────────────
     # PFIX profits directly from rising long-end rates; IVOL from rate vol spikes
     "PFIX", "IVOL",
+
+    # ── Federal Reserve — Ultra-short Treasury (Fed funds rate proxy) ─────────
+    # SHV and SGOV yield = overnight Fed funds rate — pure monetary policy plays
+    "SHV", "SGOV",
+
+    # ── Federal Reserve — TIPS (inflation expectations strip) ─────────────────
+    # VTIP is short-duration; STIP is 0-5yr; SCHP is the broad market
+    "VTIP", "STIP", "SCHP",
+
+    # ── Federal Reserve — Broad Treasury ETFs (duration laddering) ───────────
+    "GOVT", "VGLT",
+
+    # ── Federal Reserve — Currency divergence (policy gap plays) ─────────────
+    # FXB = pound (BoE vs Fed), FXC = loonie (BoC), FXA = Aussie (RBA), FXF = franc (SNB)
+    # USDU = broader dollar basket; DXJ = hedged Japan (yen carry trade unwinding)
+    "FXB", "FXC", "FXA", "FXF", "USDU", "DXJ",
+
+    # ── Federal Reserve — Building materials / lumber (housing supply chain) ──
+    "WY", "SUM", "EXP",
+
+    # ── Federal Reserve — Apartment REITs (housing demand = rate sensitivity) ─
+    "EQR", "AVB", "MAA", "CPT",
+
+    # ── Federal Reserve — Healthcare / senior housing REITs ───────────────────
+    "WELL", "VTR", "PEAK",
+
+    # ── Federal Reserve — Mortgage servicers (refi volume plays) ─────────────
+    "COOP", "PFSI", "PMT",
+
+    # ── Federal Reserve — Insurance ETFs ─────────────────────────────────────
+    "KIE", "IAK",
+
+    # ── Federal Reserve — More insurance (float yield beneficiaries) ──────────
+    "CINF", "MKL",
+
+    # ── Federal Reserve — Asset managers (mid-cap) ────────────────────────────
+    "BEN", "SEIC",
+
+    # ── Federal Reserve — Regional banks (expanded) ───────────────────────────
+    "FHN", "EWBC", "WBS",
+
+    # ── Federal Reserve — Short-duration credit (floating-rate, SOFR-linked) ──
+    "SJNK", "FALN", "USIG",
 ]
 
 TIER3 = [
@@ -426,6 +489,22 @@ TIER3 = [
     # ── Federal Reserve — Leveraged bond plays ────────────────────────────────
     # TMV is 3x bear on 20yr+ — the rate-spike weapon; SRLN/BKLN float with SOFR
     "TMV", "SRLN", "BKLN",
+
+    # ── Federal Reserve — Leveraged Treasury ETFs (medium duration) ───────────
+    # TYD/TYO are 3x on the 7-10yr belly — biggest institutional battleground
+    "TYD", "TYO",
+
+    # ── Federal Reserve — More leveraged bond products ────────────────────────
+    # TTT = 3x bear 20yr (ProShares alternative to TMV)
+    # UBT = 2x bull 20yr; UST = 2x bull 7-10yr; PST = 2x bear 7-10yr; TBF = 1x inverse 20yr
+    "TTT", "UBT", "UST", "PST", "TBF",
+
+    # ── Federal Reserve — EM rate divergence (Fed vs. EM central banks) ───────
+    "BRZU",
+
+    # ── Federal Reserve — VIX / volatility around FOMC ────────────────────────
+    # VXX spikes into FOMC uncertainty; SVXY profits after vol crush post-decision
+    "VXX", "SVXY",
 ]
 
 ALL_SYMBOLS = TIER1 + TIER2 + TIER3
@@ -566,7 +645,25 @@ SECTORS = {
     "fed_mortgage_origin":  ["RKT", "UWMC"],
     "fed_dollar_currency":  ["UUP", "UDN", "FXE", "FXY"],
     "fed_rate_hedge":       ["PFIX", "IVOL", "SRLN", "BKLN"],
-    "fed_credit_market":    ["HYG", "JNK", "EMB", "VCIT", "FLOT", "SRLN", "BKLN"],
+    "fed_credit_market":    ["HYG", "JNK", "EMB", "VCIT", "FLOT", "SRLN", "BKLN",
+                             "SJNK", "FALN", "USIG"],
+    "fed_homebuilder_etf":  ["ITB", "XHB", "NAIL"],
+    "fed_reit_etf":         ["VNQ", "XLRE", "DRN"],
+    "fed_apartment_reit":   ["EQR", "AVB", "MAA", "CPT"],
+    "fed_healthcare_reit":  ["WELL", "VTR", "PEAK"],
+    "fed_building_mats":    ["MLM", "VMC", "WY", "SUM", "EXP"],
+    "fed_mortgage_svc":     ["COOP", "PFSI", "PMT"],
+    "fed_insurance":        ["PGR", "AFL", "ALL", "PRU", "MET", "CINF", "MKL", "KIE", "IAK"],
+    "fed_asset_managers":   ["BLK", "TROW", "IVZ", "BEN", "SEIC", "SCHW", "IBKR"],
+    "fed_regional_banks+":  ["WAL", "ZION", "CFG", "RF", "FITB", "HBAN", "KEY", "MTB",
+                             "STT", "BK", "FHN", "EWBC", "WBS"],
+    "fed_treasury_short":   ["SHV", "SGOV", "BIL", "SHY"],
+    "fed_treasury_long":    ["TLT", "ZROZ", "EDV", "VGLT", "GOVT"],
+    "fed_tips":             ["TIP", "VTIP", "STIP", "SCHP"],
+    "fed_treasury_lev":     ["TMF", "TBT", "TMV", "TTT", "UBT", "UST", "TYD", "TYO", "PST", "TBF"],
+    "fed_currency":         ["UUP", "UDN", "FXE", "FXY", "FXB", "FXC", "FXA", "FXF", "USDU", "DXJ"],
+    "fed_fomc_vol":         ["VXX", "SVXY", "UVXY", "VIXY", "PFIX", "IVOL"],
+    "fed_em_divergence":    ["BRZU", "EMB", "EWZ", "EEM"],
 
     # ── Speculative ───────────────────────────────────────────────────────────
     "cannabis":             ["SNDL", "TLRY", "ACB", "CGC", "CRON", "IIPR"],
