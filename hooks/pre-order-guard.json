@@ -6,7 +6,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "python /home/user/The713Bozz/src/main.py --risk-check --account-value 50",
+          "command": "python /home/user/The713Bozz/src/main.py --risk-check",
           "timeout": 10000,
           "block_on_failure": true
         }
