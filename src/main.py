@@ -276,6 +276,25 @@ def cmd_risk_check(account_value: float) -> None:
         print(f"Max position: ${check.max_dollars:.2f}\n")
 
 
+def cmd_session_start(account_value):
+    import datetime
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+    now = datetime.datetime.now(ZoneInfo("America/New_York"))
+    is_open = (now.weekday() < 5
+               and datetime.time(9, 30) <= now.time() <= datetime.time(16, 0))
+    print(f"Session start: {now.strftime('%Y-%m-%d %H:%M')} ET "
+          f"({'market open' if is_open else 'market closed'})")
+    cmd_status(account_value)
+    if is_open:
+        print("\nMarket is open - running watchlist scan...\n")
+        cmd_scan(account_value)
+    else:
+        print("Market is closed. Next scan at 9:30 AM ET.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="The713Bozz Trading System")
     parser.add_argument("--status", action="store_true", help="Show challenge status")
@@ -286,7 +305,13 @@ def main():
     parser.add_argument("--learn", action="store_true", help="Show win-rate learning report from trade log")
     parser.add_argument("--write-session", action="store_true", help="Write SESSION.md state snapshot")
     parser.add_argument("--session-notes", type=str, default="", help="Notes to append to SESSION.md")
-    parser.add_argument("--account-value", type=float, default=50.0, help="Current account value in USD")
+    parser.add_argument("--account-value", type=float, default=None, help="Current account value in USD")
+    parser.add_argument("--mode", choices=["paper", "live"], default="paper",
+                        help="Trading mode: paper (simulated) or live (real orders)")
+    parser.add_argument("--account", type=str, default=None,
+                        help="Robinhood account number (required for --mode live)")
+    parser.add_argument("--session-start", action="store_true",
+                        help="Session startup: print status and scan if market is open")
 
     # --build-order arguments
     parser.add_argument("--build-order", action="store_true", help="Build and gate-validate an order spec")
@@ -318,7 +343,15 @@ def main():
     parser.add_argument("--lost", action="store_true", help="Trade was a loser")
 
     args = parser.parse_args()
-    account_value = args.account_value
+    if args.mode == "live" and not args.account:
+        parser.error("--mode live requires --account <ACCOUNT_NUMBER>")
+    if args.account_value is not None:
+        account_value = args.account_value
+    else:
+        from src.risk.risk_manager import load_state as _load_state
+        _st = _load_state()
+        account_value = (_st.get("account", {}).get("current_account_value")
+                         or _st.get("state", {}).get("day_open_value", 50.0))
 
     if args.status:
         cmd_status(account_value)
@@ -343,6 +376,8 @@ def main():
     elif args.reset_daily is not None:
         reset_daily(args.reset_daily)
         print(f"Daily limits reset. Day open value set to ${args.reset_daily:.2f}")
+    elif args.session_start:
+        cmd_session_start(account_value)
     else:
         parser.print_help()
 
