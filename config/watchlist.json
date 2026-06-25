@@ -1,0 +1,7 @@
+{
+  "tier1": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL"],
+  "tier2": ["SOFI", "PLTR", "RIVN", "NIO", "IONQ", "RKLB", "SOUN", "BBAI", "ARQQ", "QUBT", "MARA", "RIOT", "ACHR", "OKLO", "HOOD"],
+  "tier3": ["GME", "AMC"],
+  "all": ["NVDA", "TSLA", "AMD", "MSTR", "SMCI", "SPY", "QQQ", "AAPL", "META", "GOOGL", "SOFI", "PLTR", "RIVN", "NIO", "IONQ", "RKLB", "SOUN", "BBAI", "ARQQ", "QUBT", "MARA", "RIOT", "ACHR", "OKLO", "HOOD", "GME", "AMC"],
+  "last_updated": "2026-06-24"
+}
