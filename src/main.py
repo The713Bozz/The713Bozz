@@ -277,6 +277,43 @@ def cmd_risk_check(account_value: float) -> None:
         print(f"Max position: ${check.max_dollars:.2f}\n")
 
 
+def cmd_pdt_status(account_value: float) -> None:
+    cfg = load_state()
+    pdt = cfg["pdt"]
+    from src.risk.risk_manager import required_dte, _pdt_business_days_since
+    import datetime as _dt
+
+    trades_used = pdt["day_trades_used"]
+    window_start = pdt.get("rolling_window_start")
+    remaining = 3 - trades_used
+
+    # Expire stale window
+    if window_start and _pdt_business_days_since(window_start) >= 5:
+        trades_used = 0
+        remaining = 3
+        window_start = None
+
+    today_wd = _dt.datetime.now(_dt.timezone.utc).weekday()
+    dte_floor = required_dte(trades_used, today_wd)
+    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    print(f"\n--- PDT Status ---")
+    print(f"  Day trades used : {trades_used}/3  (rolling 5-business-day window)")
+    print(f"  Remaining today : {remaining} day trade(s)")
+    print(f"  Window started  : {window_start or 'not started'}")
+    print(f"  Min DTE now     : {dte_floor} days  (PDT pressure: {'YES' if dte_floor > 7 else 'no'})")
+
+    if account_value >= 25000:
+        print(f"  PDT rule        : EXEMPT (account ≥ $25,000)")
+    elif remaining == 0:
+        print(f"  ⛔ PDT LIMIT REACHED — swing trades only (hold overnight, no same-day close)")
+    elif remaining == 1:
+        print(f"  ⚠ 1 day trade remaining — use only for highest-conviction entry")
+    else:
+        print(f"  Swing strategy  : buy today, sell in {dte_floor}+ days → no PDT consumed")
+    print()
+
+
 def cmd_session_start(account_value):
     import datetime
     try:
@@ -292,6 +329,7 @@ def cmd_session_start(account_value):
     # not the stale value from a prior session stored in challenge.json.
     refresh_day_open(account_value)
     cmd_status(account_value)
+    cmd_pdt_status(account_value)
     if is_open:
         print("\nMarket is open - running watchlist scan...\n")
         cmd_scan(account_value)
@@ -303,6 +341,7 @@ def main():
     parser = argparse.ArgumentParser(description="The713Bozz Trading System")
     parser.add_argument("--status", action="store_true", help="Show challenge status")
     parser.add_argument("--scan", action="store_true", help="Scan watchlist for setups")
+    parser.add_argument("--pdt-status", action="store_true", help="Show PDT day-trade window status")
     parser.add_argument("--risk-check", action="store_true", help="Check if trading is allowed")
     parser.add_argument("--reset-circuit-breaker", action="store_true")
     parser.add_argument("--reset-daily", metavar="ACCOUNT_VALUE", type=float)
@@ -360,6 +399,8 @@ def main():
     if args.status:
         cmd_status(account_value)
         print(learning_report())
+    elif args.pdt_status:
+        cmd_pdt_status(account_value)
     elif args.scan:
         cmd_scan(account_value)
     elif args.learn:

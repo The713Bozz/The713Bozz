@@ -17,7 +17,7 @@ Two entry points:
 from __future__ import annotations
 
 import json as _json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path as _Path
 from typing import Optional
 
@@ -108,6 +108,43 @@ def _spy_changes_from_bars(bars: list[dict], days: int = 5) -> list[float]:
     return [(closes[i] - closes[i - 1]) / closes[i - 1] for i in range(1, len(closes))]
 
 
+def _write_spy_cache(changes: list[float]) -> None:
+    """Persist SPY daily changes to challenge.json so standalone scans can use them."""
+    if not changes:
+        return
+    try:
+        p = _Path(__file__).parent.parent.parent / "config" / "challenge.json"
+        with open(p) as f:
+            cfg = _json.load(f)
+        cfg.setdefault("spy_cache", {})["changes"] = changes
+        cfg["spy_cache"]["updated_at"] = datetime.now(timezone.utc).isoformat()
+        with open(p, "w") as f:
+            _json.dump(cfg, f, indent=2)
+    except Exception:
+        pass
+
+
+def _read_spy_cache(max_age_hours: float = 26.0) -> list[float]:
+    """Read cached SPY changes. Returns [] if missing or stale."""
+    try:
+        p = _Path(__file__).parent.parent.parent / "config" / "challenge.json"
+        with open(p) as f:
+            cfg = _json.load(f)
+        cache = cfg.get("spy_cache", {})
+        changes = cache.get("changes", [])
+        updated_at = cache.get("updated_at")
+        if not changes or not updated_at:
+            return []
+        age_hours = (datetime.now(timezone.utc) - datetime.fromisoformat(
+            updated_at.replace("Z", "+00:00")
+        )).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            return []
+        return changes
+    except Exception:
+        return []
+
+
 # ── Analyst forecast layer ────────────────────────────────────────────────────
 
 def _fetch_analyst_targets(symbols: list[str]) -> dict[str, dict]:
@@ -183,6 +220,8 @@ def run_scan(
     filter_min = _SIG.get("filter_min_score", 3)
 
     spy_changes = _spy_changes_from_bars(spy_bars, days=spy_window)
+    if spy_changes:
+        _write_spy_cache(spy_changes)
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 
@@ -221,6 +260,10 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
         spy_q = _finnhub.current_quote("SPY")
         if spy_q and spy_q.get("c") and spy_q.get("pc"):
             spy_changes = [(spy_q["c"] - spy_q["pc"]) / spy_q["pc"]]
+    if not spy_changes:
+        spy_changes = _read_spy_cache()
+        if spy_changes:
+            print("[REGIME] Using cached SPY data (Finnhub restricted) — regime may be up to 26h old.")
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 

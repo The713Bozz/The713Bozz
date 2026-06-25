@@ -127,6 +127,33 @@
     "bull_avg_threshold": 0.003,
     "ranging_position_scale": 0.5,
     "spy_window_days": 5,
-    "spy_lookback_days": 20
+    "spy_lookback_days": 20,
+    "vix_volatile_threshold": 30.0,
+    "vix_elevated_threshold": 20.0
+  },
+  "spy_cache": {
+    "changes": [
+      0.0078,
+      -0.00315,
+      -0.01452,
+      -0.00046,
+      0.0026
+    ],
+    "updated_at": "2026-06-25T19:29:46.197897+00:00",
+    "window_days": 20
+  },
+  "backtest": {
+    "enabled": true,
+    "lookback_days": 126,
+    "min_bars_required": 30,
+    "forward_return_days": [
+      3,
+      5,
+      10
+    ],
+    "last_run_at": null,
+    "last_win_rate": null,
+    "last_avg_return_5d": null,
+    "sample_size": null
   }
 }
