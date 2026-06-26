@@ -24,7 +24,6 @@ from typing import Optional
 
 from src.data import finnhub as _finnhub
 from src.data import alphavantage as _av
-from src.risk.risk_manager import log_trade
 from src.signals.catalyst import full_catalyst_check
 from src.signals.regime import RegimeResult, classify_regime
 from src.signals.technical import (
@@ -460,11 +459,30 @@ def _run_catalyst_gate(results: list[SignalResult]) -> None:
 
 # ── Scan decision logging & near-miss carry-forward ────────────────────────────
 #
+# Scan decisions go to logs/scans.jsonl — a SEPARATE log from logs/trades.jsonl.
+# Rationale: trades.jsonl holds order/fill records that contain the account number
+# and is gitignored (never committed). Scan records carry NO account number — only
+# symbols, signals, and the account *balance* (already public in config/challenge.json)
+# — so scans.jsonl is committable. That lets the near-miss carry-forward survive a
+# fresh/ephemeral container across a weekend via git, without ever putting the account
+# number into version control. The .gitignore un-ignores this one file: !logs/scans.jsonl
+#
 # The 4 signal "slots" of the Momentum Compounder stack. A SignalResult lists the
 # specific signals that fired (e.g. "near_61d_high", "strong_breakout"); we collapse
 # those to the 4 canonical slots so a scan record can say *which* slot a name is
 # missing. "missing only volume" is the premium carry-forward case: a 3/4 name that
 # fires the 4th signal next session is a high-conviction confirmation.
+
+SCAN_LOG_PATH = _Path(__file__).parent.parent.parent / "logs" / "scans.jsonl"
+
+
+def _append_scan_record(record: dict, log_path: "_Path") -> None:
+    """Append a timestamped scan record to the committable scan log (NOT trades.jsonl)."""
+    log_path.parent.mkdir(exist_ok=True)
+    record["logged_at"] = datetime.now(timezone.utc).isoformat()
+    with open(log_path, "a") as f:
+        f.write(_json.dumps(record) + "\n")
+
 
 def _slot_status(signals: list[str]) -> dict[str, bool]:
     """Map a SignalResult.signals list to the 4 canonical signal slots (filled/missing)."""
@@ -480,14 +498,16 @@ def log_scan_result(
     candidates: list[SignalResult],
     regime: RegimeResult,
     account_value: float,
+    log_path: "_Path | None" = None,
 ) -> dict:
     """
-    Append a scan-decision record to logs/trades.jsonl (CLAUDE.md rule 6: log every
+    Append a scan-decision record to logs/scans.jsonl (CLAUDE.md rule 6: log every
     signal and rejection). Records each surfaced candidate with its filled/missing
     signal slots so the decision — and the near-misses — are auditable and replayable.
 
-    Returns the written record. event="scan" entries carry no "won" field, so the
-    learning module (which keys on closed trades) ignores them.
+    Writes NO account number — only symbols, signals, and the account balance (already
+    public in config) — so the file is safe to commit and the carry-forward persists
+    across containers. Returns the written record.
     """
     surfaced = []
     for r in candidates:
@@ -512,7 +532,7 @@ def log_scan_result(
         "surfaced_count": len(surfaced),
         "surfaced": surfaced,
     }
-    log_trade(record)
+    _append_scan_record(record, log_path or SCAN_LOG_PATH)
     return record
 
 
@@ -533,7 +553,7 @@ def recent_near_misses(
     next scan re-evaluates every name from scratch anyway). Returns [] when no scan
     within the window, or none qualify.
     """
-    path = log_path or (_Path(__file__).parent.parent.parent / "logs" / "trades.jsonl")
+    path = log_path or SCAN_LOG_PATH
     if not path.exists():
         return []
 

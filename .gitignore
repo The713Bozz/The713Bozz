@@ -3,4 +3,7 @@ __pycache__/
 *.pyo
 .env
 logs/*.jsonl
+# Scan decisions carry no account number and are committed so the near-miss
+# carry-forward survives across ephemeral containers (e.g. over a weekend).
+!logs/scans.jsonl
 .claude/worktrees/
