@@ -86,13 +86,39 @@ def get_phase(account_value: float) -> int:
     return 1 if account_value < cfg["challenge"]["phase1_target"] else 2
 
 
-def max_risk_pct(account_value: float) -> float:
-    # Same aggressive strategy in both phases — compound indefinitely until user stops.
-    return 0.20
+def max_risk_pct(
+    account_value: float,
+    score: Optional[int] = None,
+    catalyst_clear: Optional[bool] = None,
+) -> float:
+    """
+    Risk fraction of account for a single trade.
+
+    Convex barbell (config["convex"]): base size on ordinary 3/4 setups, and an
+    upsized "high-conviction" fraction ONLY on a score >= high_conviction_min_score
+    (a 4/4, which already requires the volume signal) AND, when required, a confirmed
+    catalyst (catalyst_clear is True). Callers that pass no score get the base size,
+    so every existing call is unchanged.
+    """
+    cfg = load_state()
+    risk = cfg.get("risk", {})
+    conv = cfg.get("convex", {})
+    base = conv.get("base_risk_pct", risk.get("max_risk_per_trade_pct", 0.20))
+
+    if conv.get("enabled") and score is not None:
+        min_score = conv.get("high_conviction_min_score", 4)
+        needs_cat = conv.get("high_conviction_requires_catalyst", True)
+        if score >= min_score and (catalyst_clear is True or not needs_cat):
+            return conv.get("high_conviction_risk_pct", base)
+    return base
 
 
-def position_size(account_value: float) -> float:
-    return account_value * max_risk_pct(account_value)
+def position_size(
+    account_value: float,
+    score: Optional[int] = None,
+    catalyst_clear: Optional[bool] = None,
+) -> float:
+    return account_value * max_risk_pct(account_value, score, catalyst_clear)
 
 
 def option_contracts(account_value: float, option_price: float) -> int:
@@ -283,6 +309,28 @@ def refresh_day_open(account_value: float) -> None:
     save_state(cfg)
 
 
+def _iso_week_monday(d: date) -> str:
+    """Return the ISO-8601 date string of the Monday that starts d's week."""
+    return (d - timedelta(days=d.weekday())).isoformat()
+
+
+def refresh_week_open(account_value: float) -> None:
+    """
+    Anchor the weekly-loss baseline. On the first session of a new ISO week
+    (Monday-started), reset week_open_value to the live account and clear the
+    weekly halt. Mid-week sessions leave the Monday baseline untouched so the
+    -max_weekly_loss_pct guard measures the full week's drawdown.
+    """
+    cfg = load_state()
+    state = cfg["state"]
+    this_monday = _iso_week_monday(datetime.now(timezone.utc).date())
+    if state.get("week_start_date") != this_monday:
+        state["week_start_date"] = this_monday
+        state["week_open_value"] = account_value
+        state["weekly_halted"] = False
+        save_state(cfg)
+
+
 def check_trade_allowed(account_value: float) -> RiskCheck:
     if _KILL_SWITCH:
         return RiskCheck(False, "TRADING_HALTED env var is set — kill switch active. Unset to resume.")
@@ -303,6 +351,18 @@ def check_trade_allowed(account_value: float) -> RiskCheck:
         state["daily_halted"] = True
         save_state(cfg)
         return RiskCheck(False, f"Daily drawdown {drawdown:.1%} exceeded {risk['max_daily_drawdown_pct']:.0%} limit.")
+
+    # Weekly loss guardrail (convex barbell): hard halt for the rest of the week.
+    if state.get("weekly_halted"):
+        return RiskCheck(False, "Weekly loss limit hit — halted for the week. Resets Monday.")
+    max_weekly = risk.get("max_weekly_loss_pct")
+    week_open = state.get("week_open_value") or account_value
+    if max_weekly and week_open > 0:
+        weekly_dd = (week_open - account_value) / week_open
+        if weekly_dd >= max_weekly:
+            state["weekly_halted"] = True
+            save_state(cfg)
+            return RiskCheck(False, f"Weekly drawdown {weekly_dd:.1%} exceeded {max_weekly:.0%} limit — halt for the week.")
 
     pdt = cfg["pdt"]
     if pdt["halt_if_pdt_risk"] and account_value < 25000:

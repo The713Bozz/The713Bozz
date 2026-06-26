@@ -22,7 +22,7 @@ version: "1.0.0"
 ## Phase Logic
 
 ### Phase 1: $50 → $500 (Challenge)
-- Max risk per trade: **20% of account**
+- Max risk per trade: **20% base**, **40% on a 4/4 + confirmed catalyst** (convex barbell — see Position Sizing)
 - Min R:R: **2:1** (prefer 3:1 or better)
 - Instruments: cheap OTM calls/puts ($0.05–$0.30/contract), fractional shares
 - Setups: momentum breakouts, gap-and-go, earnings catalysts
@@ -78,11 +78,17 @@ Use fractional shares if needed
 
 ## Position Sizing Formula
 
+Sizing is **conviction-scaled** via `risk_manager.max_risk_pct(account_value, score, catalyst_clear)`
+(config `convex` block). Do not hardcode 0.20 — pass `score` and `catalyst_clear` into
+`build_equity_order`/`build_option_order` and let the risk manager pick the tier.
+
 ```python
-account_value = get_portfolio()
-phase = 1 if account_value < 500 else 2
-max_risk_pct = 0.20 if phase == 1 else 0.20
-risk_dollars = account_value * max_risk_pct
+# Convex barbell (config["convex"]):
+#   base_risk_pct            = 0.20   # ordinary 3/4 setup
+#   high_conviction_risk_pct = 0.40   # ONLY when score >= 4 AND catalyst_clear is True
+# A 4/4 already requires the volume signal, so the big bet implies RS+volume+EMA+high+catalyst.
+risk_pct     = 0.40 if (score >= 4 and catalyst_clear is True) else 0.20
+risk_dollars = account_value * risk_pct * position_scale   # position_scale halves in RANGING
 
 # For options:
 max_contracts = int(risk_dollars / (option_price * 100))
@@ -91,6 +97,19 @@ max_contracts = max(1, min(max_contracts, 5))  # cap at 5 contracts
 # For equities:
 shares = risk_dollars / entry_price  # fractional ok
 ```
+
+### Convex Barbell Mode (sub-year posture)
+
+The system is configured for a high-variance sub-year shot. The shape:
+- **Selective entries, asymmetric size.** Most setups take the base 20%. The 40%
+  high-conviction tier fires only on a 4/4 with a *confirmed* catalyst — few, big,
+  convex bets (prefer cheap OTM options, delta ≥ 0.15, < $0.30/contract; let winners run 2–5x).
+- **Guardrails still hard-active:** `-50%` weekly-loss halt (`max_weekly_loss_pct`,
+  resets Monday via `refresh_week_open`), 3-consecutive-loss circuit breaker, `30%`
+  daily drawdown, PDT gate, option liquidity/freshness gates. None are relaxed.
+- **Honest expectation:** this trades a real chance at 10x-in-under-a-year against a
+  meaningful chance of losing the seed. The order display tags the high-conviction
+  tier with `⚡ HIGH-CONVICTION CONVEX BET` so the size is never silent.
 
 ## Exit Rules
 

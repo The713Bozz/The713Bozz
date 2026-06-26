@@ -18,14 +18,23 @@
   "risk": {
     "max_risk_per_trade_pct": 0.2,
     "max_option_risk_per_trade_pct": 0.3,
-    "max_option_contract_cost_pct": 0.3,
+    "max_option_contract_cost_pct": 0.4,
     "max_daily_drawdown_pct": 0.3,
+    "max_weekly_loss_pct": 0.5,
     "circuit_breaker_consecutive_losses": 3,
     "min_rr_ratio": 2.0,
     "min_option_ask": 0.1,
     "min_bid_ask_ratio": 0.6,
     "max_single_equity_pct": 0.2,
     "earnings_gate_days": 2
+  },
+  "convex": {
+    "enabled": true,
+    "base_risk_pct": 0.2,
+    "high_conviction_risk_pct": 0.4,
+    "high_conviction_min_score": 4,
+    "high_conviction_requires_catalyst": true,
+    "note": "Convex barbell (sub-year shot): base 20% on 3/4 setups; 40% only on a 4/4 (which already requires volume) WITH a confirmed catalyst. Guardrails: -50% weekly loss halt, 3-loss circuit breaker, 30% daily drawdown — all still active."
   },
   "premarket": {
     "enabled": true,
@@ -43,6 +52,9 @@
     "day_open_value": 49.97,
     "day_open_date": "2026-06-26",
     "daily_halted": false,
+    "week_open_value": 49.97,
+    "week_start_date": "2026-06-22",
+    "weekly_halted": false,
     "circuit_breaker_halted": false,
     "total_trades": 0,
     "winning_trades": 0,
@@ -102,7 +114,7 @@
     "option_dte_min": 7,
     "option_dte_min_pdt_pressure": 14,
     "option_dte_max": 45,
-    "option_delta_min": 0.2,
+    "option_delta_min": 0.15,
     "option_delta_max": 0.45,
     "option_max_contracts": 5
   },

@@ -22,6 +22,7 @@ from src.risk.risk_manager import (
     load_state,
     record_trade_result,
     refresh_day_open,
+    refresh_week_open,
     reset_circuit_breaker,
     reset_daily,
 )
@@ -348,6 +349,7 @@ def cmd_session_start(account_value):
     print(f"Session start: {now.strftime('%Y-%m-%d %H:%M')} ET ({market_state})")
 
     refresh_day_open(account_value)
+    refresh_week_open(account_value)
     cmd_status(account_value)
     cmd_pdt_status(account_value)
 

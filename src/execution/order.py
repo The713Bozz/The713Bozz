@@ -25,6 +25,7 @@ from src.risk.risk_manager import (
     get_agentic_account,
     load_state,
     log_trade,
+    max_risk_pct,
     position_size,
     required_dte,
     validate_option_entry,
@@ -70,6 +71,8 @@ class OrderSpec:
     signal_score: int = 0
     regime: str = ""
     entry_note: str = ""
+    sizing_tier: str = "base"   # "base" or "high_conviction" (convex barbell upsize)
+    risk_pct: float = 0.0       # fraction of account risked on this position
 
 
 def build_equity_order(
@@ -82,12 +85,15 @@ def build_equity_order(
     regime: str,
     entry_note: str = "",
     position_scale: float = 1.0,
+    catalyst_clear: Optional[bool] = None,
 ) -> OrderSpec:
     """
     Build a validated equity buy order spec.
     Raises OrderRejected if any gate fails.
-    Gates: kill switch, circuit breaker, daily drawdown, PDT limit, quote freshness, signal score.
+    Gates: kill switch, circuit breaker, daily drawdown, weekly loss, PDT limit, quote freshness, signal score.
     position_scale: 1.0 = full, 0.5 = half (ranging regime).
+    catalyst_clear: pass the SignalResult.catalyst_clear so a 4/4 with a confirmed
+        catalyst gets the convex high-conviction size; otherwise base size.
     """
     account_number = get_agentic_account()
 
@@ -106,7 +112,9 @@ def build_equity_order(
     if score < 3:
         raise OrderRejected(f"Signal score {score}/4 below minimum 3 — setup not ready.")
 
-    max_dollars = position_size(account_value) * max(0.0, min(1.0, position_scale))
+    risk_pct = max_risk_pct(account_value, score=score, catalyst_clear=catalyst_clear)
+    tier = "high_conviction" if risk_pct > max_risk_pct(account_value) else "base"
+    max_dollars = account_value * risk_pct * max(0.0, min(1.0, position_scale))
     quantity = round(max_dollars / price, 4)
     quantity = max(0.001, quantity)
     total_cost = round(quantity * price, 2)
@@ -133,6 +141,8 @@ def build_equity_order(
         signal_score=score,
         regime=regime,
         entry_note=entry_note,
+        sizing_tier=tier,
+        risk_pct=round(risk_pct, 4),
     )
 
 
@@ -151,14 +161,17 @@ def build_option_order(
     pdt_trades_used: int = 0,
     entry_note: str = "",
     position_scale: float = 1.0,
+    catalyst_clear: Optional[bool] = None,
 ) -> OrderSpec:
     """
     Build a validated option buy order spec.
     Raises OrderRejected if any gate fails.
-    Gates: kill switch, circuit breaker, daily drawdown, PDT limit,
+    Gates: kill switch, circuit breaker, daily drawdown, weekly loss, PDT limit,
            option liquidity, quote freshness, signal score, DTE minimum.
     Stop anchored to mid price (not ask) to survive the spread at fill.
     position_scale: 1.0 = full, 0.5 = half (ranging regime).
+    catalyst_clear: pass SignalResult.catalyst_clear — a 4/4 with a confirmed
+        catalyst gets the convex high-conviction size; otherwise base size.
     """
     account_number = get_agentic_account()
 
@@ -191,7 +204,9 @@ def build_option_order(
             f"Select a contract expiring at least {min_dte} days from today."
         )
 
-    max_dollars = position_size(account_value) * max(0.0, min(1.0, position_scale))
+    risk_pct = max_risk_pct(account_value, score=score, catalyst_clear=catalyst_clear)
+    tier = "high_conviction" if risk_pct > max_risk_pct(account_value) else "base"
+    max_dollars = account_value * risk_pct * max(0.0, min(1.0, position_scale))
     cfg_state = load_state()
     max_contracts_cap = cfg_state["instruments"].get("option_max_contracts", 5)
     single_cost = ask * 100
@@ -234,6 +249,8 @@ def build_option_order(
         signal_score=score,
         regime=regime,
         entry_note=entry_note,
+        sizing_tier=tier,
+        risk_pct=round(risk_pct, 4),
     )
 
 
@@ -264,6 +281,10 @@ def display_order(spec: OrderSpec) -> str:
     lines.append(f"  Stop         : ${spec.stop_price:.4f}  (-{spec.stop_pct:.0%}){stop_suffix}")
     lines.append(f"  Target       : ${spec.target_price:.4f}  (+{spec.target_pct:.0%})")
     lines.append(f"  Score        : {spec.signal_score}/4  [{', '.join(spec.signals)}]")
+    if spec.sizing_tier == "high_conviction":
+        lines.append(f"  Sizing       : ⚡ HIGH-CONVICTION CONVEX BET — {spec.risk_pct:.0%} of account (4/4 + catalyst)")
+    else:
+        lines.append(f"  Sizing       : base {spec.risk_pct:.0%} of account")
     lines.append(f"  Regime       : {spec.regime}")
 
     if spec.entry_note:
