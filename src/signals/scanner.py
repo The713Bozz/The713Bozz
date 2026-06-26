@@ -17,6 +17,7 @@ Two entry points:
 from __future__ import annotations
 
 import json as _json
+from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
 from datetime import datetime, timezone, timedelta
 from pathlib import Path as _Path
 from typing import Optional
@@ -31,7 +32,7 @@ from src.signals.technical import (
     score_from_bars,
     score_from_metrics,
 )
-from src.strategy.watchlist import get_scan_list, get_tiered_scan_symbols
+from src.strategy.watchlist import get_tiered_scan_symbols
 
 
 def _load_signals_cfg() -> dict:
@@ -149,18 +150,22 @@ def _read_spy_cache(max_age_hours: float = 26.0) -> list[float]:
 
 def _fetch_analyst_targets(symbols: list[str]) -> dict[str, dict]:
     """
-    Fetch Finnhub analyst consensus price targets for each symbol.
-    Returns {} per symbol if API key not set or endpoint unavailable.
-    Silently skips failures so the rest of the scan proceeds.
+    Fetch Finnhub analyst consensus price targets — only called for scored candidates,
+    never for the full watchlist. Parallel fetch with up to 5 workers.
     """
+    if not symbols:
+        return {}
     targets: dict[str, dict] = {}
-    for sym in symbols:
-        try:
-            t = _finnhub.price_target(sym)
-            if t:
-                targets[sym] = t
-        except Exception:
-            pass
+    with ThreadPoolExecutor(max_workers=min(len(symbols), 5)) as pool:
+        futures = {pool.submit(_finnhub.price_target, sym): sym for sym in symbols}
+        for fut in _as_completed(futures):
+            sym = futures[fut]
+            try:
+                t = fut.result()
+                if t:
+                    targets[sym] = t
+            except Exception:
+                pass
     return targets
 
 
@@ -235,11 +240,18 @@ def run_scan(
         result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
 
-    analyst_targets = _fetch_analyst_targets(list(quotes.keys()))
-    for r in results:
-        _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
-
+    # Catalyst gate runs first (internally gated on score ≥ catalyst_gate_min_score)
     _run_catalyst_gate(results)
+
+    # Analyst targets: only fetch for score ≥ 2 candidates — never for the full watchlist.
+    # Cuts Finnhub calls from 168 → 0–5 on a typical scan day.
+    gate_min = _SIG.get("catalyst_gate_min_score", 2)
+    promising = [r for r in results if r.score >= gate_min or r.breakout_alert]
+    if promising:
+        analyst_targets = _fetch_analyst_targets([r.symbol for r in promising])
+        for r in promising:
+            _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
+
     return filter_candidates(results, min_score=filter_min), regime
 
 
@@ -275,19 +287,53 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
 
     symbols, scan_tier = get_tiered_scan_symbols(spy_today)
     print(f"[SCAN] SPY {spy_today:+.2%} → {scan_tier} ({len(symbols)} symbols)")
-    results: list[SignalResult] = []
 
+    # Pass 1: Parallel quote fetch — 10 workers, ~8–15s for 168 symbols vs ~90s serial
+    rs_min = _SIG.get("rs_min_day_change", 0.03)
+    quotes_map: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_finnhub.current_quote, sym): sym for sym in symbols}
+        for fut in _as_completed(futures):
+            sym = futures[fut]
+            try:
+                q = fut.result()
+                if q:
+                    quotes_map[sym] = q
+            except Exception:
+                pass
+
+    # Loose 50% RS pre-filter: only fetch metrics for symbols showing day move ≥ 1.5%
+    # (half the RS threshold — keeps the gate wide enough to never miss a real candidate)
+    rs_prefilter: set[str] = {
+        sym for sym, fq in quotes_map.items()
+        if fq.get("pc", 0) > 0 and abs((fq["c"] - fq["pc"]) / fq["pc"]) >= rs_min * 0.5
+    }
+    print(f"[SCAN] {len(rs_prefilter)}/{len(quotes_map)} symbols need metrics (move ≥{rs_min*0.5:.1%})")
+
+    # Pass 2: Parallel metrics fetch — only for RS candidates (typically 0–15 symbols)
+    metrics_map: dict[str, dict] = {}
+    if rs_prefilter:
+        with ThreadPoolExecutor(max_workers=min(len(rs_prefilter), 5)) as pool:
+            futures = {pool.submit(_finnhub.stock_metrics, sym): sym for sym in rs_prefilter}
+            for fut in _as_completed(futures):
+                sym = futures[fut]
+                try:
+                    m = fut.result()
+                    if m:
+                        metrics_map[sym] = m
+                except Exception:
+                    pass
+
+    results: list[SignalResult] = []
     for symbol in symbols:
-        fq = _finnhub.current_quote(symbol)
+        fq = quotes_map.get(symbol)
         if not fq:
             continue
-        # Normalise Finnhub quote to shape score_quote() expects
         quote = {
             "last_trade_price": str(fq.get("c", 0)),
             "adjusted_previous_close": str(fq.get("pc", 0)),
         }
-        metrics = _finnhub.stock_metrics(symbol)
-        result = score_from_metrics(symbol, quote, metrics, spy_change=spy_today)
+        result = score_from_metrics(symbol, quote, metrics_map.get(symbol, {}), spy_change=spy_today)
         results.append(result)
 
     # EMA via Alpha Vantage — only on top-N pre-filter candidates (conserves 25/day budget)
@@ -298,17 +344,22 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
             if aligned and "ema_aligned" not in r.signals:
                 r.score += 1
                 r.signals.append("ema_aligned")
-            # Recompute conviction after score change
             if r.score >= 4:
                 r.conviction = "high"
             elif r.score == 3:
                 r.conviction = "medium"
 
-    analyst_targets = _fetch_analyst_targets([r.symbol for r in results])
-    for r in results:
-        _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
-
+    # Catalyst gate (gated internally on score ≥ catalyst_gate_min_score)
     _run_catalyst_gate(results)
+
+    # Analyst targets: only for score ≥ 2 candidates — never for the full watchlist
+    gate_min = _SIG.get("catalyst_gate_min_score", 2)
+    promising = [r for r in results if r.score >= gate_min or r.breakout_alert]
+    if promising:
+        analyst_targets = _fetch_analyst_targets([r.symbol for r in promising])
+        for r in promising:
+            _apply_analyst_signal(r, analyst_targets.get(r.symbol, {}))
+
     return filter_candidates(results, min_score=filter_min), regime
 
 
