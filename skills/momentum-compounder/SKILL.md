@@ -109,6 +109,26 @@ shares = risk_dollars / entry_price  # fractional ok
 - High short interest + recent volume surge
 - Risky — max 1 position at a time from this tier
 
+## MCP Scan Protocol (agent session)
+
+Execute in this order to keep scan time under 3 minutes and usage under 15%:
+
+1. **Fetch SPY quote** — check `spy_cache` in `challenge.json` first (valid 26h). Only call MCP if stale.
+2. **Gate on SPY change** (use `get_tiered_scan_symbols(spy_change)` from `src/strategy/watchlist.py`):
+   - SPY <1%  → Tier 1 only (164 symbols, ~4 batches) — *most common case*
+   - SPY 1–2% → Tier 1 + Tier 2 (494 symbols, ~13 batches)
+   - SPY ≥2%  → All 576 (15 batches) — only on genuine surge days
+3. **Batch size: 40 symbols per `get_equity_quotes` call** — MCP closes are omitted above 20, but RS uses `adjusted_previous_close` from the quote itself, so closes are not needed.
+4. **Parallelism: max 4 calls per wave** — ≥10 simultaneous crashes the stream.
+5. **RS pre-filter first**: only fetch historicals for symbols with day_change >3%. On flat days this is zero — skip historicals entirely.
+
+Expected times at batch=40, max 4 parallel:
+| Regime | Symbols | Batches | Waves | Time |
+|--------|---------|---------|-------|------|
+| Flat (SPY <1%) | 164 | 5 | 2 | ~45 s |
+| Active (SPY 1–2%) | 494 | 13 | 4 | ~2 min |
+| Surge (SPY ≥2%) | 576 | 15 | 4 | ~2.5 min |
+
 ## Pre-Trade Checklist
 
 Before every order:

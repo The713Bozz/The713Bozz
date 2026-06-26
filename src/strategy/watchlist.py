@@ -672,6 +672,23 @@ SECTORS = {
 }
 
 
+SCAN_BATCH_SIZE = 40  # ponytail: MCP returns quotes fine at 40; closes omitted >20 but RS uses adjusted_previous_close from quote, not closes
+
+
+def get_tiered_scan_symbols(spy_change_pct: float) -> tuple[list[str], str]:
+    """
+    Return (symbols, tier_label) gated on SPY's day change.
+    RS threshold is >3% — on flat days (<1% SPY) nothing in Tier 2/3 passes.
+    Cuts scan from 576 → 164 symbols on consolidation days (the common case).
+    """
+    abs_chg = abs(spy_change_pct)
+    if abs_chg < 0.01:  # SPY <1%: Tier 1 only
+        return TIER1[:], "tier1"
+    if abs_chg < 0.02:  # SPY 1-2%: Tier 1 + Tier 2
+        return list(dict.fromkeys(TIER1 + TIER2)), "tier1+tier2"
+    return list(dict.fromkeys(TIER1 + TIER2 + TIER3)), "all"  # SPY ≥2%
+
+
 def get_scan_list(account_value: float, include_tier3: bool = False) -> list[str]:
     """
     Return symbols to scan.

@@ -31,7 +31,7 @@ from src.signals.technical import (
     score_from_bars,
     score_from_metrics,
 )
-from src.strategy.watchlist import get_scan_list
+from src.strategy.watchlist import get_scan_list, get_tiered_scan_symbols
 
 
 def _load_signals_cfg() -> dict:
@@ -267,7 +267,8 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 
-    symbols = get_scan_list(account_value)
+    symbols, scan_tier = get_tiered_scan_symbols(spy_today)
+    print(f"[SCAN] SPY {spy_today:+.2%} → {scan_tier} ({len(symbols)} symbols)")
     results: list[SignalResult] = []
 
     for symbol in symbols:
