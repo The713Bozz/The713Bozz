@@ -29,6 +29,7 @@ from src.risk.risk_manager import (
     required_dte,
     validate_option_entry,
 )
+from src.signals.catalyst import check_earnings_risk
 
 
 class OrderRejected(Exception):
@@ -93,6 +94,10 @@ def build_equity_order(
     check = check_trade_allowed(account_value)
     if not check.allowed:
         raise OrderRejected(f"Trade blocked: {check.reason}")
+
+    earnings_safe, earnings_reason = check_earnings_risk(symbol)
+    if not earnings_safe:
+        raise OrderRejected(f"[EARNINGS GATE] {earnings_reason}")
 
     fresh = check_quote_freshness(quote_timestamp_utc)
     if not fresh.allowed:
@@ -160,6 +165,10 @@ def build_option_order(
     check = check_trade_allowed(account_value)
     if not check.allowed:
         raise OrderRejected(f"Trade blocked: {check.reason}")
+
+    earnings_safe, earnings_reason = check_earnings_risk(symbol)
+    if not earnings_safe:
+        raise OrderRejected(f"[EARNINGS GATE] {earnings_reason}")
 
     # Liquidity + freshness (combined gate)
     val = validate_option_entry(bid, ask, quote_timestamp_utc)

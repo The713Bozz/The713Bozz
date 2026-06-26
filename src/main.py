@@ -27,6 +27,10 @@ from src.risk.risk_manager import (
 )
 from src.signals.learning import learning_report
 from src.signals.regime import RegimeResult
+from src.signals.premarket import (
+    format_premarket_report,
+    run_premarket_scan_standalone,
+)
 from src.signals.scanner import print_scan_report, run_scan_standalone
 from src.strategy.watchlist import get_tiered_scan_symbols
 
@@ -120,6 +124,19 @@ def cmd_write_session(account_value: float, notes: str = "") -> None:
 
     SESSION_PATH.write_text("\n".join(lines))
     print(f"SESSION.md written → {SESSION_PATH}")
+
+
+def cmd_premarket_scan() -> None:
+    """Run pre-market intelligence pass (Finnhub standalone path)."""
+    from src.risk.risk_manager import load_state as _load_state
+    cfg = _load_state()
+    if not cfg.get("premarket", {}).get("enabled", True):
+        print("[PREMARKET] Disabled in config.")
+        return
+    gap_pct = cfg.get("premarket", {}).get("gap_threshold_pct", 0.02)
+    print(f"\nPre-market scan — gap threshold ≥{gap_pct:.0%}. Fetching quotes...\n")
+    candidates = run_premarket_scan_standalone(gap_threshold=gap_pct)
+    print(format_premarket_report(candidates, gap_threshold=gap_pct))
 
 
 def cmd_scan(account_value: float, regime: RegimeResult | None = None) -> None:
@@ -322,17 +339,23 @@ def cmd_session_start(account_value):
     except ImportError:
         from backports.zoneinfo import ZoneInfo
     now = datetime.datetime.now(ZoneInfo("America/New_York"))
+    is_premarket = (now.weekday() < 5
+                    and datetime.time(9, 0) <= now.time() < datetime.time(9, 30))
     is_open = (now.weekday() < 5
                and datetime.time(9, 30) <= now.time() <= datetime.time(16, 0))
-    print(f"Session start: {now.strftime('%Y-%m-%d %H:%M')} ET "
-          f"({'market open' if is_open else 'market closed'})")
-    # Refresh day_open_value so drawdown guard uses today's actual opening value,
-    # not the stale value from a prior session stored in challenge.json.
+
+    market_state = "pre-market" if is_premarket else ("market open" if is_open else "market closed")
+    print(f"Session start: {now.strftime('%Y-%m-%d %H:%M')} ET ({market_state})")
+
     refresh_day_open(account_value)
     cmd_status(account_value)
     cmd_pdt_status(account_value)
-    if is_open:
-        print("\nMarket is open - running watchlist scan...\n")
+
+    if is_premarket:
+        print("\nPre-market window (9:00–9:30 AM) — running intelligence pass...\n")
+        cmd_premarket_scan()
+    elif is_open:
+        print("\nMarket is open — running watchlist scan...\n")
         cmd_scan(account_value)
     else:
         print("Market is closed. Next scan at 9:30 AM ET.")
@@ -341,6 +364,7 @@ def cmd_session_start(account_value):
 def main():
     parser = argparse.ArgumentParser(description="The713Bozz Trading System")
     parser.add_argument("--status", action="store_true", help="Show challenge status")
+    parser.add_argument("--premarket-scan", action="store_true", help="Run pre-market intelligence pass (9:00–9:30 AM)")
     parser.add_argument("--scan", action="store_true", help="Scan watchlist for setups")
     parser.add_argument("--pdt-status", action="store_true", help="Show PDT day-trade window status")
     parser.add_argument("--risk-check", action="store_true", help="Check if trading is allowed")
@@ -402,6 +426,8 @@ def main():
         print(learning_report())
     elif args.pdt_status:
         cmd_pdt_status(account_value)
+    elif args.premarket_scan:
+        cmd_premarket_scan()
     elif args.scan:
         cmd_scan(account_value)
     elif args.learn:

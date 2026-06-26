@@ -106,6 +106,27 @@ def check_news_text(symbol: str, news_text: str) -> CatalystResult:
     return CatalystResult(symbol, True, "clear", "No negative catalyst in headlines.")
 
 
+def check_earnings_risk(symbol: str, days_ahead: int = 2) -> tuple[bool, str]:
+    """
+    Order-time earnings gate. Returns (safe_to_trade, block_reason).
+    safe_to_trade=False when earnings fall within days_ahead calendar days.
+    Uses both Finnhub and FMP for cross-verification — either source can block.
+    Passes through (True, "") when data modules are unavailable.
+    """
+    if not _DATA_AVAILABLE:
+        return True, ""
+    finn_dates = _finnhub.earnings_dates(symbol, days_forward=days_ahead)
+    try:
+        fmp_dates = _fmp.earnings_dates(symbol, days_forward=days_ahead)
+    except Exception:
+        fmp_dates = []
+    all_dates = list(set(finn_dates + fmp_dates))
+    result = check_earnings_window(symbol, all_dates)
+    if not result.clear:
+        return False, result.detail
+    return True, ""
+
+
 def full_catalyst_check(symbol: str, today: Optional[date] = None) -> CatalystResult:
     """
     Full automated catalyst check using live APIs (no WebFetch needed).

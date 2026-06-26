@@ -24,7 +24,14 @@
     "min_rr_ratio": 2.0,
     "min_option_ask": 0.1,
     "min_bid_ask_ratio": 0.6,
-    "max_single_equity_pct": 0.2
+    "max_single_equity_pct": 0.2,
+    "earnings_gate_days": 2
+  },
+  "premarket": {
+    "enabled": true,
+    "gap_threshold_pct": 0.02,
+    "news_days_back": 2,
+    "tier": "tier1"
   },
   "pdt": {
     "day_trades_used": 0,

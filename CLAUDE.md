@@ -72,9 +72,9 @@ These actions happen automatically — no user prompt needed:
 
 | Trigger | Action |
 |---------|--------|
-| Market open (9:30 AM ET, Mon–Fri) | Scan all 20 watchlist symbols, score signals, report top candidates |
-| Pre-market (9:00–9:30 AM ET) | Pull pre-market quotes, flag any gap-ups >3% for priority review |
-| New session start | Check portfolio value, reset daily state, scan if market is open |
+| Market open (9:30 AM ET, Mon–Fri) | Full technical scan — RS + volume + EMA + high proximity — report 3/4+ candidates |
+| Pre-market (9:00–9:30 AM ET) | Intelligence pass — fetch Tier 1 quotes, check news/catalysts, flag gap ≥2% symbols with catalyst type and sentiment. Output feeds priority list into 9:30 scan. |
+| New session start | Check portfolio value, reset daily state, run appropriate scan for current time window |
 | Position held overnight | Check quote at open, flag if stop loss level is breached |
 
 **Scanning never requires permission. Placing an order always requires user confirmation.**
