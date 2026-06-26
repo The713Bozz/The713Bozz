@@ -99,7 +99,7 @@ def check_news_text(symbol: str, news_text: str) -> CatalystResult:
     soft_hits = [kw for kw in _SOFT_FLAGS if kw in text]
     if soft_hits:
         return CatalystResult(
-            symbol, False, "news_caution",
+            symbol, True, "news_caution",
             f"Soft flags in headlines: {', '.join(soft_hits)}. Review before entry.",
         )
 

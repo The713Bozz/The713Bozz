@@ -106,34 +106,9 @@ def screen_options(
     is_late_week = today_weekday >= 3
     effective_dte_min = dte_min_pdt if (is_late_week and pdt_trades_used >= 2) else dte_min
 
-    # Parse chain data — handle Robinhood MCP response shape
-    expirations: list[str] = []
-    strikes_by_expiry: dict[str, list[float]] = {}
-    instruments_by_key: dict[str, dict] = {}
-
-    raw_chains = chains_data.get("data", chains_data) if isinstance(chains_data, dict) else {}
-    results_list = raw_chains.get("results", [raw_chains]) if isinstance(raw_chains, dict) else []
-
-    for chain in results_list:
-        exp_dates = chain.get("expiration_dates", [])
-        expirations.extend(exp_dates)
-
-    # Parse quotes — build lookup by instrument URL or symbol+strike+expiry key
+    # Parse quotes directly — filtering iterates quote_results, no lookup table needed
     raw_quotes = quotes_data.get("data", quotes_data) if isinstance(quotes_data, dict) else {}
     quote_results = raw_quotes.get("results", []) if isinstance(raw_quotes, dict) else []
-
-    quote_lookup: dict[str, dict] = {}
-    for q in quote_results:
-        url = q.get("instrument") or q.get("url") or ""
-        key = _option_key(q.get("symbol", symbol), q.get("type", ""), q.get("strike_price", ""), q.get("expiration_date", ""))
-        if url:
-            quote_lookup[url] = q
-        if key:
-            quote_lookup[key] = q
-        # Also index by instrument_id if present
-        inst_id = q.get("instrument_id") or q.get("id") or ""
-        if inst_id:
-            quote_lookup[inst_id] = q
 
     contracts: list[OptionContract] = []
 

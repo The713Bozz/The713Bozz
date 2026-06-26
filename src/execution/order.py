@@ -25,7 +25,6 @@ from src.risk.risk_manager import (
     get_agentic_account,
     load_state,
     log_trade,
-    option_contracts,
     position_size,
     required_dte,
     validate_option_entry,
@@ -184,8 +183,17 @@ def build_option_order(
         )
 
     max_dollars = position_size(account_value) * max(0.0, min(1.0, position_scale))
-    contracts = option_contracts(account_value, ask)
-    total_cost = round(contracts * ask * 100, 2)
+    cfg_state = load_state()
+    max_contracts_cap = cfg_state["instruments"].get("option_max_contracts", 5)
+    single_cost = ask * 100
+    max_per_contract = account_value * cfg_state["risk"].get("max_option_contract_cost_pct", 0.30)
+    if single_cost > max_per_contract:
+        raise OrderRejected(
+            f"Contract cost ${single_cost:.2f} exceeds per-contract limit "
+            f"${max_per_contract:.2f} ({cfg_state['risk'].get('max_option_contract_cost_pct', 0.30):.0%} of ${account_value:.2f})."
+        )
+    contracts = max(1, min(int(max_dollars / single_cost), max_contracts_cap))
+    total_cost = round(contracts * single_cost, 2)
 
     # Stop anchored to mid — buying at ask with bid below means you are immediately
     # down (ask - bid)/ask on paper. Anchor stop to mid so it reflects real value.
@@ -304,6 +312,7 @@ def log_fill(
     stop_price: Optional[float] = None,
     target_price: Optional[float] = None,
     won: Optional[bool] = None,
+    signals: Optional[list] = None,
 ) -> None:
     """Write a confirmed fill record to logs/trades.jsonl."""
     multiplier = 100 if instrument == "option" else 1
@@ -321,4 +330,5 @@ def log_fill(
         "stop_price": stop_price,
         "target_price": target_price,
         "won": won,
+        "signals": signals or [],
     })

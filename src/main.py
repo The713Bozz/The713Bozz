@@ -28,7 +28,7 @@ from src.risk.risk_manager import (
 from src.signals.learning import learning_report
 from src.signals.regime import RegimeResult
 from src.signals.scanner import print_scan_report, run_scan_standalone
-from src.strategy.watchlist import get_scan_list
+from src.strategy.watchlist import get_tiered_scan_symbols
 
 SESSION_PATH = Path(__file__).parent.parent / "SESSION.md"
 
@@ -130,9 +130,8 @@ def cmd_scan(account_value: float, regime: RegimeResult | None = None) -> None:
 
     cfg = load_state()
     max_contract = account_value * cfg["risk"]["max_option_contract_cost_pct"]
-    symbols = get_scan_list(account_value)
 
-    print(f"\nScanning {len(symbols)} symbols | Max position: ${check.max_dollars:.2f} | Max contract: ${max_contract:.2f}")
+    print(f"\nMax position: ${check.max_dollars:.2f} | Max contract: ${max_contract:.2f}")
     print("Fetching Finnhub data...\n")
 
     candidates, detected_regime = run_scan_standalone(account_value)
@@ -275,6 +274,8 @@ def cmd_risk_check(account_value: float) -> None:
     print(f"\n[{status}] {check.reason}")
     if check.allowed:
         print(f"Max position: ${check.max_dollars:.2f}\n")
+    else:
+        sys.exit(1)  # triggers block_on_failure in pre-order-guard hook
 
 
 def cmd_pdt_status(account_value: float) -> None:

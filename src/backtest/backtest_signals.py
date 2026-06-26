@@ -199,10 +199,12 @@ def run_backtest(
                 low = bars[j]["l"]
                 gain_pct = (high - entry_price) / entry_price
                 loss_pct = (low - entry_price) / entry_price
-                if gain_pct >= 1.50:
+                # +20% underlying ≈ +150% option gain at delta-0.30
+                # -5% underlying ≈ -50% option loss at delta-0.30
+                if gain_pct >= 0.20:
                     option_target_hit = True
                     break
-                if loss_pct <= -0.50:
+                if loss_pct <= -0.05:
                     option_stop_hit = True
                     break
 

@@ -13,7 +13,7 @@ def _load_signals_cfg() -> dict:
         return {}
 
 
-_SIG = _load_signals_cfg()
+_SIG: dict = {}  # reloaded inside score_from_bars / score_from_metrics on each call
 
 
 @dataclass
@@ -191,6 +191,8 @@ def score_from_metrics(
     metrics: dict from finnhub.stock_metrics() — has high_52w, avg_vol_10d, avg_vol_3m.
     ema_aligned: pass result of alphavantage.ema_aligned() for top candidates only.
     """
+    global _SIG
+    _SIG = _load_signals_cfg()
     return score_quote(
         symbol=symbol,
         quote=quote,
@@ -220,6 +222,8 @@ def score_from_bars(
     The high label reflects actual bar span: "near_52w_high" only when ≥252 bars
     are available; otherwise "near_{n}d_high" so the signal name is truthful.
     """
+    global _SIG
+    _SIG = _load_signals_cfg()
     volume: Optional[float] = None
     avg_volume: Optional[float] = None
     high_52w: Optional[float] = None

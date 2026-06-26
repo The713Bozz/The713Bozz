@@ -13,7 +13,7 @@ def _load_regime_cfg() -> dict:
         return {}
 
 
-_REG = _load_regime_cfg()
+_REG: dict = {}  # reloaded inside classify_regime on each call
 
 
 @dataclass
@@ -42,6 +42,8 @@ def classify_regime(
     - bull     : avg > bull_avg_threshold (+0.3%) + majority positive days
     - ranging  : everything else — half-size entries only
     """
+    global _REG
+    _REG = _load_regime_cfg()
     vol_thresh    = _REG.get("volatile_avg_abs_threshold", 0.015)
     bear_thresh   = _REG.get("bear_avg_threshold", -0.003)
     bull_thresh   = _REG.get("bull_avg_threshold", 0.003)

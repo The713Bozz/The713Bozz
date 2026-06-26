@@ -52,8 +52,8 @@ def _load_regime_cfg() -> dict:
         return {}
 
 
-_SIG = _load_signals_cfg()
-_REG = _load_regime_cfg()
+_SIG: dict = {}  # reloaded at start of run_scan / run_scan_standalone
+_REG: dict = {}  # reloaded at start of run_scan / run_scan_standalone
 
 
 # ── Volume projection helper ──────────────────────────────────────────────────
@@ -216,6 +216,9 @@ def run_scan(
     historicals: optional {symbol: bars} from get_equity_historicals per symbol
                  (provides volume + high + EMA — best signal quality)
     """
+    global _SIG, _REG
+    _SIG = _load_signals_cfg()
+    _REG = _load_regime_cfg()
     spy_window = _REG.get("spy_window_days", 5)
     filter_min = _SIG.get("filter_min_score", 3)
 
@@ -248,6 +251,9 @@ def run_scan_standalone(account_value: float) -> tuple[list[SignalResult], Regim
     SPY regime from Finnhub ETF candles falls back to unknown if restricted.
     EMA called via Alpha Vantage on top-N pre-filter candidates only.
     """
+    global _SIG, _REG
+    _SIG = _load_signals_cfg()
+    _REG = _load_regime_cfg()
     spy_window   = _REG.get("spy_window_days", 5)
     spy_lookback = _REG.get("spy_lookback_days", 20)
     av_top_n     = _SIG.get("av_ema_top_n", 3)

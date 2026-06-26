@@ -34,6 +34,7 @@
   "state": {
     "consecutive_losses": 0,
     "day_open_value": 49.97,
+    "day_open_date": null,
     "daily_halted": false,
     "circuit_breaker_halted": false,
     "total_trades": 0,

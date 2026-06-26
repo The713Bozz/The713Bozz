@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
@@ -74,8 +75,10 @@ def assert_agentic_account(account_number: str) -> None:
 
 
 def save_state(state: dict) -> None:
-    with open(CONFIG_PATH, "w") as f:
+    tmp = CONFIG_PATH.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
+    os.replace(tmp, CONFIG_PATH)  # atomic on Linux — no corrupt-on-crash window
 
 
 def get_phase(account_value: float) -> int:
@@ -145,7 +148,9 @@ def check_quote_freshness(quote_timestamp_utc: str, max_age_seconds: int = 60) -
     quote_timestamp_utc: ISO 8601 string from MCP venue_last_trade_time or similar.
     """
     try:
-        ts = datetime.fromisoformat(quote_timestamp_utc.replace("Z", "+00:00"))
+        ts_str = quote_timestamp_utc.replace("Z", "+00:00")
+        ts_str = re.sub(r'(\.\d{6})\d+', r'\1', ts_str)  # truncate nanoseconds to microseconds
+        ts = datetime.fromisoformat(ts_str)
         age = (datetime.now(timezone.utc) - ts).total_seconds()
     except (ValueError, AttributeError):
         return RiskCheck(False, f"Cannot parse quote timestamp '{quote_timestamp_utc}' — re-fetch before placing.")
@@ -266,12 +271,15 @@ def increment_day_trade() -> None:
 def refresh_day_open(account_value: float) -> None:
     """
     Update day_open_value from the live account at session start.
-    Also clears the daily_halted flag so a new session can trade.
+    Clears daily_halted only when the calendar date has rolled (new trading day).
     Does NOT reset PDT counter — that uses its own rolling window.
     """
     cfg = load_state()
-    cfg["state"]["daily_halted"] = False
+    today = datetime.now(timezone.utc).date().isoformat()
+    if cfg["state"].get("day_open_date", "") != today:
+        cfg["state"]["daily_halted"] = False  # only clear on a new calendar day
     cfg["state"]["day_open_value"] = account_value
+    cfg["state"]["day_open_date"] = today
     save_state(cfg)
 
 
