@@ -57,29 +57,56 @@ _SIG: dict = {}  # reloaded at start of run_scan / run_scan_standalone
 _REG: dict = {}  # reloaded at start of run_scan / run_scan_standalone
 
 
+# ── MCP bar normalizer ────────────────────────────────────────────────────────
+
+def _normalize_mcp_bars(bars: list[dict]) -> list[dict]:
+    """
+    Convert Robinhood MCP get_equity_historicals bars to internal OHLCV format.
+    Internal: {t, o, h, l, c, v}  (float prices, int volume)
+    MCP:      {begins_at, open_price, high_price, low_price, close_price, volume}
+    No-op when bars are already in internal format (detected by "c" key presence).
+    """
+    if not bars or "c" in bars[0]:
+        return bars
+    return [
+        {
+            "t": b.get("begins_at", ""),
+            "o": float(b.get("open_price") or 0),
+            "h": float(b.get("high_price") or 0),
+            "l": float(b.get("low_price") or 0),
+            "c": float(b.get("close_price") or 0),
+            "v": int(b.get("volume") or 0),
+        }
+        for b in bars
+    ]
+
+
 # ── Volume projection helper ──────────────────────────────────────────────────
 
 def _project_todays_volume(bars: list[dict]) -> Optional[float]:
     """
-    If bars[-1] is today's partial bar, scale its raw volume to a projected
-    full-session equivalent using (390 / minutes_elapsed_since_930_ET).
+    Project today's session volume to a full-day equivalent using
+    (390 / minutes_elapsed_since_930_ET).
 
-    Returns None when the last bar is from a prior day (stale cache), so
-    score_from_bars() falls back to bars[-1]["v"] as-is (completed prior day).
-    Never call this after market close — returns raw volume unchanged if >= 390
-    minutes have elapsed.
+    Handles both:
+      - A single daily partial bar (if the endpoint returns one for today)
+      - Multiple intraday bars (e.g. 5-min bars) — sums all today's volumes
+
+    Assumes bars are already in internal format {t, v} — call _normalize_mcp_bars
+    first. Returns None when no today's bar is found so score_from_bars() falls
+    back to bars[-1]["v"] (yesterday's completed session volume).
     """
     if not bars:
         return None
 
-    last_t = bars[-1].get("t", "")
-    if not last_t:
+    today_utc_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_bars = [b for b in bars if str(b.get("t", "")).startswith(today_utc_prefix)]
+    if not today_bars:
         return None
 
-    # Robinhood daily bars use UTC midnight begins_at (e.g. "2026-06-23T00:00:00Z")
-    today_utc_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    if not str(last_t).startswith(today_utc_prefix):
-        return None  # Stale bar — caller will use bars[-1]["v"] as prior-day volume
+    # Sum all today's bar volumes — correct for both a single daily partial bar
+    # and a list of intraday bars (where each bar has only its interval's volume).
+    raw = sum(float(b["v"]) for b in today_bars)
 
     try:
         from zoneinfo import ZoneInfo
@@ -91,11 +118,10 @@ def _project_todays_volume(bars: list[dict]) -> Optional[float]:
     market_open_et = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
     minutes_elapsed = (now_et - market_open_et).total_seconds() / 60
 
-    raw = float(bars[-1]["v"])
     if minutes_elapsed < 1:
-        return raw  # Pre-market or opening tick — no meaningful projection yet
+        return raw
     if minutes_elapsed >= 390:
-        return raw  # Full session complete — no scaling needed
+        return raw
 
     return raw * (390.0 / minutes_elapsed)
 
@@ -213,13 +239,18 @@ def run_scan(
     spy_bars: list[dict],
     account_value: float,
     historicals: dict[str, list[dict]] | None = None,
+    today_volumes: dict[str, float] | None = None,
 ) -> tuple[list[SignalResult], RegimeResult]:
     """
     Primary scan using Robinhood MCP data.
-    quotes:      {symbol: quote_dict} from get_equity_quotes
-    spy_bars:    daily OHLCV bars for SPY from get_equity_historicals
-    historicals: optional {symbol: bars} from get_equity_historicals per symbol
-                 (provides volume + high + EMA — best signal quality)
+    quotes:        {symbol: quote_dict} from get_equity_quotes.
+    spy_bars:      daily OHLCV bars for SPY. MCP format auto-normalized.
+    historicals:   optional {symbol: bars} from get_equity_historicals.
+                   MCP format auto-normalized. Use start_time ≥90 calendar days
+                   back so high_3m (63 bars) is computed and 21-EMA has warmup.
+    today_volumes: optional {symbol: projected_full_day_volume}. When provided
+                   for a symbol, overrides _project_todays_volume(). Compute by
+                   summing today's 5-min bar volumes × (390 / minutes_elapsed).
     """
     global _SIG, _REG
     _SIG = _load_signals_cfg()
@@ -227,6 +258,7 @@ def run_scan(
     spy_window = _REG.get("spy_window_days", 5)
     filter_min = _SIG.get("filter_min_score", 3)
 
+    spy_bars = _normalize_mcp_bars(spy_bars)
     spy_changes = _spy_changes_from_bars(spy_bars, days=spy_window)
     if spy_changes:
         _write_spy_cache(spy_changes)
@@ -235,8 +267,11 @@ def run_scan(
 
     results: list[SignalResult] = []
     for symbol, quote in quotes.items():
-        bars = (historicals or {}).get(symbol, [])
-        today_vol = _project_todays_volume(bars) if bars else None
+        bars = _normalize_mcp_bars((historicals or {}).get(symbol, []))
+        today_vol = (
+            (today_volumes or {}).get(symbol)
+            or (_project_todays_volume(bars) if bars else None)
+        )
         result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
 

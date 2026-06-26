@@ -40,8 +40,8 @@ version: "1.0.0"
 
 ### Required (minimum 3 of 4 must be true):
 1. **Relative Strength**: Stock up >3% on the day OR outperforming SPY by >2%
-2. **Volume Surge**: Current volume > 1.5x 20-day average volume (intraday pace)
-3. **EMA alignment**: Price above both 9 EMA and 21 EMA on 5-minute chart
+2. **Volume Surge**: Current volume > 1.5x 14-day average volume (intraday pace)
+3. **EMA alignment**: 9-day EMA above 21-day EMA (daily bars)
 4. **Trend**: Price within 10% of 52-week high OR breaking out of consolidation
 
 ### Bonus (increases conviction, allows larger size):
@@ -121,6 +121,9 @@ Execute in this order to keep scan time under 3 minutes and usage under 15%:
 3. **Batch size: 40 symbols per `get_equity_quotes` call** — MCP closes are omitted above 20, but RS uses `adjusted_previous_close` from the quote itself, so closes are not needed.
 4. **Parallelism: max 4 calls per wave** — ≥10 simultaneous crashes the stream.
 5. **RS pre-filter first**: only fetch historicals for symbols with day_change >3%. On flat days this is zero — skip historicals entirely.
+   - **Lookback**: use `start_time` ≥90 calendar days back (~63 trading days). Less than 63 bars skips `high_3m` entirely and leaves the 21-EMA underwarmed.
+   - **Today's volume**: daily bars end at yesterday's close. For live volume, fetch 5-min intraday bars from today's open separately, sum their volumes, and pass `today_volumes={symbol: sum * (390 / minutes_elapsed)}` to `run_scan()`.
+   - **Format**: `run_scan()` auto-normalizes raw MCP bar dicts — pass them directly, no manual conversion needed.
 
 Expected times at batch=40, max 4 parallel:
 | Regime | Symbols | Batches | Waves | Time |
