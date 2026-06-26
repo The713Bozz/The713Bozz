@@ -126,6 +126,27 @@ def _project_todays_volume(bars: list[dict]) -> Optional[float]:
     return raw * (390.0 / minutes_elapsed)
 
 
+# ── Quote helpers ─────────────────────────────────────────────────────────────
+
+def _day_change(quote: dict) -> float:
+    """Return intraday day-change fraction from a Robinhood MCP quote dict."""
+    try:
+        price = float(
+            quote.get("last_trade_price") or quote.get("ask_price") or quote.get("c") or 0
+        )
+        prev = float(
+            quote.get("adjusted_previous_close")
+            or quote.get("previous_close")
+            or quote.get("pc")
+            or price
+        )
+        if price > 0 and prev > 0:
+            return (price - prev) / prev
+    except (TypeError, ValueError):
+        pass
+    return 0.0
+
+
 # ── Regime helpers ────────────────────────────────────────────────────────────
 
 def _spy_changes_from_bars(bars: list[dict], days: int = 5) -> list[float]:
@@ -265,6 +286,7 @@ def run_scan(
     regime = classify_regime(spy_changes)
     spy_today = spy_changes[-1] if spy_changes else 0.0
 
+    rs_min = _SIG.get("rs_min_day_change", 0.03)
     results: list[SignalResult] = []
     for symbol, quote in quotes.items():
         bars = _normalize_mcp_bars((historicals or {}).get(symbol, []))
@@ -274,6 +296,19 @@ def run_scan(
         )
         result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
+
+    # Warn when RS-qualifying symbols have no historicals — they score 0/1 on signals
+    # 2–4 (volume, EMA, high) and are silently under-scored.
+    if historicals:
+        missing_hist = [
+            sym for sym, q in quotes.items()
+            if _day_change(q) >= rs_min and not (historicals or {}).get(sym)
+        ]
+        if missing_hist:
+            print(
+                f"[SCAN] ⚠ {len(missing_hist)} RS candidate(s) scored without historicals "
+                f"(vol/EMA/high signals unavailable): {', '.join(missing_hist)}"
+            )
 
     # Catalyst gate runs first (internally gated on score ≥ catalyst_gate_min_score)
     _run_catalyst_gate(results)

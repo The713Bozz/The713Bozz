@@ -40,9 +40,17 @@ version: "1.0.0"
 
 ### Required (minimum 3 of 4 must be true):
 1. **Relative Strength**: Stock up >3% on the day OR outperforming SPY by >2%
-2. **Volume Surge**: Current volume > 1.5x 14-day average volume (intraday pace)
+2. **Volume Surge**: Current volume > 1.5x 14-day average volume (intraday pace).
+   The 14-day baseline uses `bars[-(vol_window+1):-1]` — it **excludes the reference/today bar**
+   so the average is not inflated by the session being measured. Do not use `bars[-14:]` in
+   ad-hoc checks; that includes yesterday and produces a slightly different baseline.
 3. **EMA alignment**: 9-day EMA above 21-day EMA (daily bars)
-4. **Trend**: Price within 10% of 52-week high OR breaking out of consolidation
+4. **Trend**: Price within 10% of 52-week high OR breaking out of consolidation.
+   When fewer than 252 bars are available (e.g. ~61 bars with a 90-calendar-day lookback),
+   the signal is labeled `near_{N}d_high` (not `near_52w_high`) to reflect the actual bar
+   span. A 90-calendar-day lookback yields ~61 trading days — the true 52-week high is
+   unavailable. The high_3m gate (price ≥90% of 63-bar max) and strong_breakout fallback
+   (≥5% day change) still apply as alternates.
 
 ### Bonus (increases conviction, allows larger size):
 - Earnings catalyst within 5 days
@@ -124,6 +132,9 @@ Execute in this order to keep scan time under 3 minutes and usage under 15%:
    - **Lookback**: use `start_time` ≥90 calendar days back (~63 trading days). Less than 63 bars skips `high_3m` entirely and leaves the 21-EMA underwarmed.
    - **Today's volume**: daily bars end at yesterday's close. For live volume, fetch 5-min intraday bars from today's open separately, sum their volumes, and pass `today_volumes={symbol: sum * (390 / minutes_elapsed)}` to `run_scan()`.
    - **Format**: `run_scan()` auto-normalizes raw MCP bar dicts — pass them directly, no manual conversion needed.
+   - **Missing historicals warning**: `run_scan()` prints a warning when RS candidates (day_change ≥3%) have no historicals. These symbols score only the RS signal — volume/EMA/high signals are all unavailable.
+6. **Breakout alerts**: `filter_candidates()` passes through any symbol with `day_change ≥8% AND score ≥2`, even below the 3/4 minimum. These appear as `!! BREAKOUT ALERTS` in `print_scan_report()`. They are not trade signals — they flag news-driven explosions that may need catalyst verification before entry.
+7. **Inverse and leveraged bear ETFs** (SOXS, SQQQ, SPXS, SDOW, etc.): These appear in Tier 1 and will generate RS signals on down-market days. They are **not standard long momentum setups** — a high RS day for SOXS means the underlying sector (semiconductors) is crashing. Do not apply the standard breakout/EMA/high framework to them. If they appear in candidates, note the inverse nature and skip unless explicitly trading the downside.
 
 Expected times at batch=40, max 4 parallel:
 | Regime | Symbols | Batches | Waves | Time |

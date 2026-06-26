@@ -66,7 +66,7 @@ def score_quote(
     spy_change: float = 0.0,
     volume: Optional[float] = None,
     avg_volume: Optional[float] = None,
-    high_52w: Optional[float] = None,
+    high_ref: Optional[float] = None,
     ema_aligned: Optional[bool] = None,
     avg_vol_10d: Optional[float] = None,
     avg_vol_3m: Optional[float] = None,
@@ -82,7 +82,11 @@ def score_quote(
                   used in standalone CLI mode where today's intraday volume is unavailable)
 
     Signals are SKIPPED (not penalised) when enrichment data is absent.
-    high_label: label to use for the near-high signal (caller sets based on actual bar span).
+    high_ref: reference high for proximity check. Meaning depends on caller:
+      - score_from_metrics(): true 52-week high from Finnhub
+      - score_from_bars(): max high over all available bars (may be only ~61d with 90-cal-day lookback)
+    high_label: label applied to the near-high signal; caller sets it to reflect actual bar span
+      (e.g. "near_52w_high" only when ≥252 bars are present, otherwise "near_{N}d_high").
     """
     signals = []
     score = 0
@@ -140,8 +144,8 @@ def score_quote(
 
     # 4. High proximity — labeled by caller (actual bar span, not assumed 52w).
     #    3m high as recovery breakout fallback; then magnitude breakout.
-    if high_52w is not None and high_52w > 0:
-        if price >= high_52w * high_prox:
+    if high_ref is not None and high_ref > 0:
+        if price >= high_ref * high_prox:
             score += 1
             signals.append(high_label)
         elif high_3m is not None and high_3m > 0 and price >= high_3m * high_prox:
@@ -197,7 +201,7 @@ def score_from_metrics(
         symbol=symbol,
         quote=quote,
         spy_change=spy_change,
-        high_52w=metrics.get("high_52w"),
+        high_ref=metrics.get("high_52w"),
         ema_aligned=ema_aligned,
         avg_vol_10d=metrics.get("avg_vol_10d"),
         avg_vol_3m=metrics.get("avg_vol_3m"),
@@ -226,7 +230,7 @@ def score_from_bars(
     _SIG = _load_signals_cfg()
     volume: Optional[float] = None
     avg_volume: Optional[float] = None
-    high_52w: Optional[float] = None
+    high_allbars: Optional[float] = None
     ema_aligned: Optional[bool] = None
     high_3m: Optional[float] = None
 
@@ -239,7 +243,7 @@ def score_from_bars(
         volume = today_volume if today_volume is not None else float(bars[-1]["v"])
         if len(bars) >= vol_window + 1:
             avg_volume = sum(b["v"] for b in bars[-(vol_window + 1):-1]) / vol_window
-        high_52w = max(b["h"] for b in bars)
+        high_allbars = max(b["h"] for b in bars)  # max over available bars, NOT necessarily 52w
         if len(bars) >= high_3m_bars:
             high_3m = max(b["h"] for b in bars[-high_3m_bars:])
 
@@ -258,7 +262,7 @@ def score_from_bars(
         spy_change=spy_change,
         volume=volume,
         avg_volume=avg_volume,
-        high_52w=high_52w,
+        high_ref=high_allbars,
         ema_aligned=ema_aligned,
         high_3m=high_3m,
         high_label=high_label,
