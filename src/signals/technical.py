@@ -163,7 +163,7 @@ def score_quote(
     stop_pct = opt_stop if instrument == "option" else eq_stop
     target_pct = opt_target if instrument == "option" else eq_target
 
-    vol_note = f", Vol {volume/avg_volume:.1f}x" if (volume and avg_volume) else ""
+    vol_note = f", Vol {volume/avg_volume:.1f}x" if (volume is not None and avg_volume) else ""
     ema_note = " EMA✓" if ema_aligned else ""
 
     breakout_alert = day_change_pct >= brk_alert and score >= 2

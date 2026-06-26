@@ -287,15 +287,27 @@ def run_scan(
     spy_today = spy_changes[-1] if spy_changes else 0.0
 
     rs_min = _SIG.get("rs_min_day_change", 0.03)
+    stale_vol_syms: list[str] = []
     results: list[SignalResult] = []
     for symbol, quote in quotes.items():
         bars = _normalize_mcp_bars((historicals or {}).get(symbol, []))
-        today_vol = (
-            (today_volumes or {}).get(symbol)
-            or (_project_todays_volume(bars) if bars else None)
-        )
+        today_vol = (today_volumes or {}).get(symbol)
+        if today_vol is None:
+            today_vol = _project_todays_volume(bars) if bars else None
+        if today_vol is None and bars:
+            # No intraday data — volume will use yesterday's completed session.
+            # This compares yesterday vs 14d-avg, not today vs 14d-avg.
+            if _day_change(quote) >= rs_min:
+                stale_vol_syms.append(symbol)
         result = score_from_bars(symbol, quote, bars, spy_change=spy_today, today_volume=today_vol)
         results.append(result)
+
+    if stale_vol_syms:
+        print(
+            f"[SCAN] ⚠ Volume signal using yesterday's data for {len(stale_vol_syms)} RS "
+            f"candidate(s) — pass today_volumes or include intraday bars for live surge "
+            f"detection: {', '.join(stale_vol_syms)}"
+        )
 
     # Warn when RS-qualifying symbols have no historicals — they score 0/1 on signals
     # 2–4 (volume, EMA, high) and are silently under-scored.
