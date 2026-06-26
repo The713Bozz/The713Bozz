@@ -24,6 +24,7 @@ from typing import Optional
 
 from src.data import finnhub as _finnhub
 from src.data import alphavantage as _av
+from src.risk.risk_manager import log_trade
 from src.signals.catalyst import full_catalyst_check
 from src.signals.regime import RegimeResult, classify_regime
 from src.signals.technical import (
@@ -455,6 +456,164 @@ def _run_catalyst_gate(results: list[SignalResult]) -> None:
             cat = full_catalyst_check(r.symbol)
             r.catalyst_clear = cat.clear
             r.catalyst_detail = cat.detail
+
+
+# ── Scan decision logging & near-miss carry-forward ────────────────────────────
+#
+# The 4 signal "slots" of the Momentum Compounder stack. A SignalResult lists the
+# specific signals that fired (e.g. "near_61d_high", "strong_breakout"); we collapse
+# those to the 4 canonical slots so a scan record can say *which* slot a name is
+# missing. "missing only volume" is the premium carry-forward case: a 3/4 name that
+# fires the 4th signal next session is a high-conviction confirmation.
+
+def _slot_status(signals: list[str]) -> dict[str, bool]:
+    """Map a SignalResult.signals list to the 4 canonical signal slots (filled/missing)."""
+    return {
+        "relative_strength": "relative_strength" in signals,
+        "volume": any(s in ("volume_surge", "volume_accumulation") for s in signals),
+        "ema_aligned": "ema_aligned" in signals,
+        "high": any(s.startswith("near_") or s == "strong_breakout" for s in signals),
+    }
+
+
+def log_scan_result(
+    candidates: list[SignalResult],
+    regime: RegimeResult,
+    account_value: float,
+) -> dict:
+    """
+    Append a scan-decision record to logs/trades.jsonl (CLAUDE.md rule 6: log every
+    signal and rejection). Records each surfaced candidate with its filled/missing
+    signal slots so the decision — and the near-misses — are auditable and replayable.
+
+    Returns the written record. event="scan" entries carry no "won" field, so the
+    learning module (which keys on closed trades) ignores them.
+    """
+    surfaced = []
+    for r in candidates:
+        slots = _slot_status(r.signals)
+        surfaced.append({
+            "symbol": r.symbol,
+            "score": r.score,
+            "conviction": r.conviction,
+            "signals": list(r.signals),
+            "missing": [slot for slot, present in slots.items() if not present],
+            "day_change_pct": round(r.day_change_pct, 4),
+            "price": round(r.current_price, 2),
+            "breakout_alert": r.breakout_alert,
+            "catalyst_clear": r.catalyst_clear,
+        })
+    record = {
+        "event": "scan",
+        "regime": regime.regime,
+        "trade_allowed": regime.trade_allowed,
+        "position_scale": regime.position_scale,
+        "account_value": round(account_value, 2),
+        "surfaced_count": len(surfaced),
+        "surfaced": surfaced,
+    }
+    log_trade(record)
+    return record
+
+
+def recent_near_misses(
+    max_age_hours: float = 80.0,
+    missing_slot: str = "volume",
+    min_score: int = 3,
+    log_path: "_Path | None" = None,
+) -> list[dict]:
+    """
+    Read back the most recent scan record from logs/trades.jsonl and return the names
+    that scored ≥ min_score while missing ONLY the given slot. These are the premium
+    carry-forward candidates: a 3/4 name missing only volume today becomes a confirmed
+    4/4 setup if volume shows up next session.
+
+    Default window is 80h so a Friday scan still carries into Monday's open across a
+    normal weekend (a 3-day holiday weekend can still age out — that is acceptable, the
+    next scan re-evaluates every name from scratch anyway). Returns [] when no scan
+    within the window, or none qualify.
+    """
+    path = log_path or (_Path(__file__).parent.parent.parent / "logs" / "trades.jsonl")
+    if not path.exists():
+        return []
+
+    last_scan = None
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                if entry.get("event") == "scan":
+                    last_scan = entry  # keep the latest — file is append-ordered
+    except OSError:
+        return []
+
+    if not last_scan:
+        return []
+
+    logged_at = last_scan.get("logged_at")
+    if logged_at:
+        try:
+            ts = datetime.fromisoformat(logged_at.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            age_h = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+            if age_h > max_age_hours:
+                return []
+        except (ValueError, AttributeError):
+            pass
+
+    return [
+        s for s in last_scan.get("surfaced", [])
+        if s.get("score", 0) >= min_score and s.get("missing") == [missing_slot]
+    ]
+
+
+# ── Agent-session orchestrator (single entry point for MCP-fed scans) ──────────
+
+def run_agent_scan(
+    quotes: dict[str, dict],
+    spy_bars: list[dict],
+    account_value: float,
+    historicals: dict[str, list[dict]] | None = None,
+    today_volumes: dict[str, float] | None = None,
+) -> tuple[list[SignalResult], RegimeResult]:
+    """
+    One call that drives the *committed, tested* scan pipeline end-to-end from
+    already-fetched Robinhood MCP data: score → catalyst gate → analyst layer →
+    filter (run_scan), print the report, and log the decision to trades.jsonl.
+    Also surfaces near-misses carried forward from the previous scan.
+
+    Use this from the agent session instead of re-deriving signals inline — the
+    decision then comes from the same code path that is unit-tested, not throwaway
+    scratch scripts. Returns (candidates, regime).
+    """
+    # Carry-forward must be read BEFORE we log this scan, so it reflects the prior one.
+    carry = recent_near_misses()
+
+    candidates, regime = run_scan(
+        quotes, spy_bars, account_value,
+        historicals=historicals, today_volumes=today_volumes,
+    )
+
+    print_scan_report(candidates, regime, account_value)
+
+    if carry:
+        names = ", ".join(
+            f"{c['symbol']} ({c['day_change_pct']:+.1%}, was {c['score']}/4)" for c in carry
+        )
+        print(
+            f"--- CARRY-FORWARD: {len(carry)} name(s) were 3/4 missing only volume last scan ---\n"
+            f"    Watch for volume confirmation today → high-conviction: {names}\n"
+        )
+
+    log_scan_result(candidates, regime, account_value)
+    return candidates, regime
 
 
 def print_scan_report(

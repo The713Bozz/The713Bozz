@@ -119,7 +119,23 @@ shares = risk_dollars / entry_price  # fractional ok
 
 ## MCP Scan Protocol (agent session)
 
-Execute in this order to keep scan time under 3 minutes and usage under 15%:
+**Score through the committed pipeline — do not re-derive signals inline.** Once quotes,
+SPY bars, historicals, and `today_volumes` are fetched, feed them to
+`run_agent_scan(quotes, spy_bars, account_value, historicals=..., today_volumes=...)`
+(`src/signals/scanner.py`). It drives the *tested* path end-to-end: `run_scan()` (score →
+catalyst gate → analyst layer → filter) → `print_scan_report()` → `log_scan_result()`
+(writes an `event="scan"` record to `logs/trades.jsonl`, CLAUDE.md rule 6) → and prints any
+**carry-forward** near-misses from the previous scan. Hand-computing EMA/high/volume in
+scratch scripts is error-prone and bypasses the catalyst gate — use the function.
+
+- **Carry-forward**: a name that was 3/4 *missing only volume* last scan is surfaced at the
+  top of the next scan. If volume confirms today, it is a high-conviction 4/4 — `recent_near_misses()`
+  reads it back from the scan log (30h window).
+- **Scan logging**: every scan's surfaced names + their missing signal slot are logged, so
+  rejections are auditable and replayable. `event="scan"` records carry no `won` field, so the
+  learning module ignores them.
+
+Execute the fetch in this order to keep scan time under 3 minutes and usage under 15%:
 
 1. **Fetch SPY quote** — check `spy_cache` in `challenge.json` first (valid 26h). Only call MCP if stale.
 2. **Gate on SPY change** (use `get_tiered_scan_symbols(spy_change)` from `src/strategy/watchlist.py`):
