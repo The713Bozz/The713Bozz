@@ -34,7 +34,7 @@
     "high_conviction_risk_pct": 0.4,
     "high_conviction_min_score": 4,
     "high_conviction_requires_catalyst": true,
-    "note": "Convex barbell (sub-year shot): base 20% on 3/4 setups; 40% only on a 4/4 (which already requires volume) WITH a confirmed catalyst. Guardrails: -50% weekly loss halt, 3-loss circuit breaker, 30% daily drawdown — all still active."
+    "note": "Convex barbell (sub-year shot): base 20% on 3/4 setups; 40% only on a 4/4 (which already requires volume) WITH a confirmed catalyst. Guardrails: -50% weekly loss halt, 3-loss circuit breaker, 30% daily drawdown \u2014 all still active."
   },
   "premarket": {
     "enabled": true,
@@ -50,7 +50,7 @@
   "state": {
     "consecutive_losses": 0,
     "day_open_value": 49.97,
-    "day_open_date": "2026-06-26",
+    "day_open_date": "2026-06-27",
     "daily_halted": false,
     "week_open_value": 49.97,
     "week_start_date": "2026-06-22",
