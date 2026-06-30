@@ -44,7 +44,9 @@ the existing risk rules. It **builds a plan; it never places an order.**
 
    Guardrails fire automatically:
    - Unverified catalyst → BUY downgraded to **WATCH**, "do not size up" caveat.
-   - Volume signal absent → "new high on light volume fades" caveat.
+   - **Unconfirmed/light volume → BUY downgraded to WATCH** (gate, not just a
+     caveat — a new high on light volume fades; AMAT faded below entry on
+     2026-06-30 after a ~0.5x-RVOL buy). Needs volume ≥ 1.5× avg to clear.
    - Day change ≥ +6% → extension/chase warning (prefer pullback entry).
    - `position_scale == 0` (volatile/bear) → **stand aside**, no entry.
    - Playbook match from `config/strategies/*.yaml` (regime + signals + breadth).

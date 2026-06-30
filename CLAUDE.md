@@ -155,7 +155,7 @@ Every candidate flows through the dashboard pipeline before any order:
 1. **Regime** — classify SPY (`src/signals/regime.py`); `position_scale` sets size (1.0 bull / 0.5 ranging / 0.0 volatile|bear).
 2. **Scan + measure** — live MCP quotes/historicals; score the 4 signals (RS, **measured** volume, EMA, breakout/high). Volume must be measured, never projected.
 3. **Verify research** — `ResearchNote` (`src/signals/research.py`): a catalyst is only trusted with ≥1 named source; contradictions are surfaced.
-4. **Dashboard** — `--dashboard` builds the 4-part report + gated battle plan. Guardrails auto-fire: unverified catalyst → WATCH; light-volume new high → caveat; +6%+ intraday → chase warning; regime scale 0 → stand aside.
+4. **Dashboard** — `--dashboard` builds the 4-part report + gated battle plan. Guardrails auto-fire: unverified catalyst → WATCH; **unconfirmed volume → WATCH** (a new high on light volume fades — AMAT, 2026-06-30); +6%+ intraday → chase warning; regime scale 0 → stand aside.
 5. **Review** — `review_equity_order`/`review_option_order` → present → **explicit user confirmation** → place. Never bypass (Rule #1).
 
 ## Subagent Usage

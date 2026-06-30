@@ -119,9 +119,17 @@ def build_dashboard(
         for c in research.contradictions:
             caveats.append(f"Research contradiction: {c}")
 
-    # --- volume honesty (the lesson that keeps repeating) ---
+    # --- volume GATE (lesson AMAT taught on 2026-06-30) ---
+    # A new high on light/unconfirmed volume fades (AMAT: bought +5.5% on ~0.5x
+    # RVOL, faded to close below entry). Volume is core to the momentum strategy
+    # — "must be measured, not estimated." So treat absent/unconfirmed volume
+    # like an unverified catalyst: it cannot carry a full BUY. Downgrade to WATCH
+    # until volume confirms (≥ volume_surge_multiplier × avg).
     if not _has(signal.signals, ("volume_surge", "volume_accumulation")):
-        caveats.append("Volume signal absent/unconfirmed — a new high on light volume fades.")
+        caveats.append("Volume unconfirmed — a new high on light volume fades. "
+                       "BUY gated to WATCH until volume confirms (≥1.5x avg).")
+        if action == "BUY":
+            action = "WATCH"
 
     # --- extension / chase guard ---
     if signal.day_change_pct >= 0.06:
