@@ -1,0 +1,15 @@
+# Ported from daily_stock_analysis (dragon_head.yaml — 龙头).
+name: dragon_head
+label: "Dragon Head (Sector Leader)"
+description: >
+  The strongest name in the leading sector when breadth confirms the whole group
+  is moving together. Lead the rotation, not a lone outlier.
+fits_regime: [bull, ranging]
+required_signals: [relative_strength, near_high]
+min_score: 3
+instrument_bias: calls
+requires_sector_breadth: true
+notes: >
+  Only valid when research confirms sector-wide strength (e.g. semicap equipment
+  all >95 RS on 2026-06-30 behind the Citi WFE upgrade). A single name printing
+  green with no peers is NOT a dragon head.

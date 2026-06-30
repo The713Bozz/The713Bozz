@@ -1,0 +1,13 @@
+# Ported from daily_stock_analysis (bull_trend.yaml).
+name: bull_trend
+label: "Bull Trend Continuation"
+description: >
+  Stacked EMAs (9>21), price above both, relative strength vs SPY. Ride an
+  established uptrend; add on pullbacks to the rising short EMA, not at extension.
+fits_regime: [bull]
+required_signals: [relative_strength, ema_aligned]
+min_score: 3
+instrument_bias: calls
+notes: >
+  Best entry is a pullback-and-hold to EMA9, NOT a +9% extended print into the
+  close. For swing holds (7+ day, no PDT) intraday extension matters less.

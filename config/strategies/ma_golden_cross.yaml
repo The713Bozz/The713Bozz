@@ -1,0 +1,13 @@
+# Ported from daily_stock_analysis (ma_golden_cross.yaml).
+name: ma_golden_cross
+label: "EMA Golden Cross"
+description: >
+  Short EMA crosses above long EMA with rising price — early trend-turn entry,
+  ideal as a ranging regime resolves upward.
+fits_regime: [bull, ranging]
+required_signals: [ema_aligned, relative_strength]
+min_score: 3
+instrument_bias: calls
+notes: >
+  Earlier (lower-conviction) than bull_trend — the cross is forming, not mature.
+  Size at the ranging half-scale until the trend confirms.

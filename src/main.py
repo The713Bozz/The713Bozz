@@ -333,6 +333,59 @@ def cmd_pdt_status(account_value: float) -> None:
     print()
 
 
+def cmd_dashboard(args, account_value: float) -> None:
+    """Render the daily_stock_analysis Decision Dashboard from agent-measured
+    inputs. The agent supplies live MCP data (price, day change, measured
+    signals, regime) + an optional verified research note; this builds the
+    4-part report and the gated battle plan. Stops at a plan — never places."""
+    from dataclasses import dataclass
+    from src.signals.technical import SignalResult
+    from src.signals.research import ResearchNote
+    from src.strategy.dashboard import build_dashboard, format_dashboard
+
+    if not args.symbol or args.price is None:
+        print("[ERROR] --dashboard requires --symbol and --price")
+        return
+
+    signals = [s.strip() for s in args.signals.split(",") if s.strip()] if args.signals else []
+    sig = SignalResult(
+        symbol=args.symbol,
+        score=args.score,
+        signals=signals,
+        current_price=args.price,
+        day_change_pct=args.day_change,
+        stop_pct=args.stop_pct,
+        target_pct=args.target_pct,
+        breakout_alert=(args.day_change >= 0.08 and args.score >= 2),
+    )
+
+    scale = args.position_scale
+    regime = RegimeResult(
+        regime=args.regime,
+        trade_allowed=scale > 0,
+        instrument_bias="calls" if scale > 0 else "flat",
+        confidence="medium",
+        detail=f"Regime '{args.regime}' (agent-supplied), position scale {scale:g}.",
+        position_scale=scale,
+    )
+
+    research = None
+    if args.catalyst:
+        research = ResearchNote(
+            symbol=args.symbol,
+            catalyst=args.catalyst,
+            thesis=args.thesis or "",
+            sources=[s.strip() for s in args.sources.split(",") if s.strip()] if args.sources else [],
+            verified=args.research_verified,
+            conviction=args.conviction,
+            sector_context=args.sector_context or "",
+            contradictions=[c.strip() for c in args.contradiction.split(";") if c.strip()] if args.contradiction else [],
+        )
+
+    d = build_dashboard(sig, regime, account_value, research=research)
+    print(format_dashboard(d))
+
+
 def cmd_session_start(account_value):
     import datetime
     try:
@@ -401,6 +454,19 @@ def main():
     parser.add_argument("--entry-note", type=str, default="", help="Entry context note")
     parser.add_argument("--position-scale", type=float, default=1.0, help="Position size scale: 1.0=full, 0.5=half (ranging regime)")
 
+    # --dashboard arguments (daily_stock_analysis Decision Dashboard)
+    parser.add_argument("--dashboard", action="store_true", help="Render the 4-part Decision Dashboard from measured inputs")
+    parser.add_argument("--day-change", type=float, default=0.0, help="Today's day change as decimal (0.059 = +5.9%%)")
+    parser.add_argument("--stop-pct", type=float, default=0.08, help="Stop distance as decimal (0.057 = 5.7%%)")
+    parser.add_argument("--target-pct", type=float, default=0.20, help="Target distance as decimal")
+    parser.add_argument("--catalyst", type=str, default="", help="Verified catalyst one-liner (research note)")
+    parser.add_argument("--thesis", type=str, default="", help="Why the catalyst matters")
+    parser.add_argument("--sources", type=str, default="", help="Comma-separated research sources")
+    parser.add_argument("--research-verified", action="store_true", help="Catalyst corroborated by ≥1 source")
+    parser.add_argument("--conviction", type=str, default="none", choices=["high", "medium", "low", "none"], help="Research conviction")
+    parser.add_argument("--sector-context", type=str, default="", help="Breadth read (e.g. 'sector-wide RS >95')")
+    parser.add_argument("--contradiction", type=str, default="", help="Semicolon-separated disconfirming evidence")
+
     # --log-fill arguments
     parser.add_argument("--log-fill", action="store_true", help="Log a confirmed fill to trades.jsonl")
     parser.add_argument("--order-id", type=str, help="Robinhood order ID")
@@ -440,6 +506,8 @@ def main():
         cmd_risk_check(account_value)
     elif args.build_order:
         cmd_build_order(args)
+    elif args.dashboard:
+        cmd_dashboard(args, account_value)
     elif args.log_fill:
         cmd_log_fill(args)
     elif args.record_result:

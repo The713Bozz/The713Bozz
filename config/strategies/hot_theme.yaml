@@ -1,0 +1,14 @@
+# Ported from daily_stock_analysis (hot_theme.yaml — 热点题材).
+name: hot_theme
+label: "Hot Theme Rotation"
+description: >
+  Capital rotating into a theme (AI infra, semicap, security software). Trade the
+  group leader while money is flowing in; exit when breadth narrows.
+fits_regime: [bull, ranging]
+required_signals: [relative_strength]
+min_score: 2
+instrument_bias: calls
+requires_sector_breadth: true
+notes: >
+  Theme must be confirmed by a verified research note AND multiple names moving
+  together — otherwise it is a single-name move masquerading as a theme.

@@ -1,0 +1,14 @@
+# Ported from daily_stock_analysis (volume_breakout.yaml), mapped to the
+# Momentum Compounder signal vocabulary (src/signals/technical.py).
+name: volume_breakout
+label: "Volume Breakout"
+description: >
+  Price breaks to a new high on a measured volume surge. The cleanest momentum
+  entry — participation confirms the move rather than a low-volume melt-up.
+fits_regime: [bull, ranging]
+required_signals: [relative_strength, volume_surge, near_high]
+min_score: 3
+instrument_bias: calls
+notes: >
+  Volume must be MEASURED, not projected. A new high on below-average volume is
+  the failure mode that faded 9/10 names on 2026-06-26 — disqualify it.

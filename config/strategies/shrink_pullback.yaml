@@ -1,0 +1,13 @@
+# Ported from daily_stock_analysis (shrink_pullback.yaml — 缩量回踩).
+name: shrink_pullback
+label: "Shrink-Volume Pullback"
+description: >
+  An uptrending leader pulls back on DECLINING volume to a rising EMA, then
+  resumes. The lower-risk re-entry into strength — buy the rest, not the run.
+fits_regime: [bull, ranging]
+required_signals: [ema_aligned]
+min_score: 2
+instrument_bias: calls
+notes: >
+  The disciplined alternative to chasing extension: wait for the pullback to
+  hold support with volume drying up, enter on the resumption with volume back.
