@@ -93,10 +93,11 @@ These actions happen automatically — no user prompt needed:
 
 ## Architecture
 
-- `src/signals/` — Technical signal generators (momentum, volume, RSI, EMA)
+- `src/signals/` — Technical signal generators (momentum, volume, RSI, EMA), regime, catalyst, and `research.py` (verified-catalyst intelligence layer)
 - `src/risk/` — Position sizing, drawdown tracking, circuit breaker
-- `src/strategy/` — Trade decision logic, watchlist management
-- `src/main.py` — Orchestration loop
+- `src/strategy/` — Trade decision logic, watchlist, `strategy_library.py` (playbook matcher) and `dashboard.py` (Decision Dashboard builder)
+- `config/strategies/*.yaml` — Named momentum playbooks (volume_breakout, bull_trend, dragon_head, ma_golden_cross, shrink_pullback, hot_theme)
+- `src/main.py` — Orchestration loop (`--dashboard` is the canonical pre-trade report)
 - `config/challenge.json` — Live challenge state (account value, trade count, phase)
 - `logs/trades.jsonl` — Immutable trade log
 - `skills/momentum-compounder/SKILL.md` — Strategy skill
@@ -107,6 +108,7 @@ These actions happen automatically — no user prompt needed:
 
 | Skill | When to invoke |
 |-------|---------------|
+| `decision-dashboard` | **Canonical pre-trade pipeline** — regime → scan → measure → verify research → dashboard → review. Run for every candidate. |
 | `momentum-compounder` | Core trading skill — every trade |
 | `prediction-market-oracle-research` | Before entry — get macro/event odds as 5th signal |
 | `prediction-market-risk-review` | Before any order — safety gate |
@@ -129,7 +131,25 @@ python src/main.py --mode live --account <ACCOUNT_NUMBER>
 
 # Check challenge status
 python src/main.py --status
+
+# Canonical pre-trade pipeline: build the Decision Dashboard for a candidate
+# (agent supplies live-measured inputs from MCP + verified research)
+python src/main.py --dashboard --symbol KLAC --price 295.42 --day-change 0.061 \
+  --score 3 --signals "relative_strength,ema_aligned,near_61d_high" \
+  --regime bull --position-scale 1.0 --stop-pct 0.057 --target-pct 0.114 \
+  --catalyst "..." --sources "..." --research-verified --conviction high \
+  --sector-context "sector-wide RS >95"
 ```
+
+## Standard Pre-Trade Workflow (run off this)
+
+Every candidate flows through the dashboard pipeline before any order:
+
+1. **Regime** — classify SPY (`src/signals/regime.py`); `position_scale` sets size (1.0 bull / 0.5 ranging / 0.0 volatile|bear).
+2. **Scan + measure** — live MCP quotes/historicals; score the 4 signals (RS, **measured** volume, EMA, breakout/high). Volume must be measured, never projected.
+3. **Verify research** — `ResearchNote` (`src/signals/research.py`): a catalyst is only trusted with ≥1 named source; contradictions are surfaced.
+4. **Dashboard** — `--dashboard` builds the 4-part report + gated battle plan. Guardrails auto-fire: unverified catalyst → WATCH; light-volume new high → caveat; +6%+ intraday → chase warning; regime scale 0 → stand aside.
+5. **Review** — `review_equity_order`/`review_option_order` → present → **explicit user confirmation** → place. Never bypass (Rule #1).
 
 ## Subagent Usage
 
