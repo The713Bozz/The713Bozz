@@ -2,6 +2,13 @@
 
 ## Agent Operating Principles
 
+### 0. Do It Yourself — Never Offload to the User
+Never ask the user to do something manually that you can do for them. Before saying "you should…" or "go do X," **check your MCP servers, tools, and connectors** — if any of them can accomplish the task, do it yourself, then report the result.
+- Default to action: place the order, fetch the data, run the script, edit the file, log the fill, check the status — don't narrate instructions for the user to follow.
+- If a tool/server is disconnected, **reconnect or reload it** (e.g. via ToolSearch) and proceed — don't hand the task back.
+- The **only** things to defer to the user are: (a) the explicit order-confirmation gate (Rule #1 below), and (b) actions genuinely outside your tooling (funding the account, real-world identity steps). Everything else, you do.
+- "I can't" requires first proving the capability is absent — search your tools before claiming a limitation.
+
 ### 1. Maximize Reasoning, Minimize Tooling
 Do not reach for a specialized tool if a simple bash command, read-only data query, or reasoning can solve the problem. If a choice exists between a complex multi-step tool execution and a simple read operation, always choose the read operation.
 
