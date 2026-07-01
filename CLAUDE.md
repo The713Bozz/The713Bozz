@@ -97,6 +97,7 @@ These actions happen automatically — no user prompt needed:
 5. **No averaging down**: Never add to a losing position.
 6. **Log everything**: Every signal, order attempt, fill, and rejection must be logged to `logs/trades.jsonl`.
 7. **PDT awareness**: Monitor day trade count. If account < $25,000, never exceed 3 day trades in a rolling 5-day window without user confirmation.
+8. **Execution integrity — place AND verify in the same turn.** Once an order is confirmed, `place_*_order` and then confirm the fill via `get_equity_orders`/`get_equity_positions` in the same turn — never assume a confirmed order executed. Never operate on an assumed fill (Rule #2: no stale assumptions). For time-sensitive exits (stop breaches) when session continuity is not guaranteed, **queue the order at the broker** rather than relying on a wake-up/cron to fire it — the broker queue is durable; the agent session is not. (Lesson: 2026-07-01, an AMAT stop-sell was confirmed but never placed across a session interruption; the position fell another ~5% before it was caught.)
 
 ## Architecture
 
