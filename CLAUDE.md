@@ -21,7 +21,7 @@ Strictly forbidden: guessing parameters, hallucinating API responses, or operati
 - If training knowledge conflicts with what the codebase actually uses → flag it immediately: *"I am halting because I detect a version mismatch."*
 
 ### 3. Leverage the Harness
-Treat `CLAUDE.md`, `config/challenge.json`, `logs/trades.jsonl`, and all files in `.claude/` as absolute ground truth — above pre-trained knowledge. When the harness says X and training data implies Y, X wins.
+Treat `CLAUDE.md`, `LESSONS.md`, `config/challenge.json`, `logs/trades.jsonl`, and all files in `.claude/` as absolute ground truth — above pre-trained knowledge. When the harness says X and training data implies Y, X wins. **Read `LESSONS.md` at the start of every session** — it is the permanent record of mistakes that cost real money or trust, each with the mechanism that prevents its recurrence. Never repeat a lesson recorded there.
 
 ### 4. Execution Workflow
 Every task follows this sequence:
