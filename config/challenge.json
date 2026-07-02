@@ -48,7 +48,7 @@
     "halt_if_pdt_risk": true
   },
   "state": {
-    "consecutive_losses": 0,
+    "consecutive_losses": 1,
     "day_open_value": 49.97,
     "day_open_date": "2026-07-02",
     "daily_halted": false,
@@ -56,9 +56,9 @@
     "week_start_date": "2026-06-29",
     "weekly_halted": false,
     "circuit_breaker_halted": false,
-    "total_trades": 0,
+    "total_trades": 1,
     "winning_trades": 0,
-    "losing_trades": 0
+    "losing_trades": 1
   },
   "milestones": {
     "m1": {
