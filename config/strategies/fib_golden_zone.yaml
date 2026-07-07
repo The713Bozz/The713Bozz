@@ -1,0 +1,21 @@
+# Fibonacci "golden zone" pullback entry (src/signals/fibonacci.py).
+# Honest framing: no statistical magic in the ratios — this is a disciplined
+# pullback-entry framework. Its job is structural anti-chase: enter a confirmed
+# uptrend only on the retrace into the 50%-61.8% zone, never at extension
+# (the AMAT 2026-06-30 lesson).
+name: fib_golden_zone
+label: "Fib Golden Zone Pullback"
+description: >
+  A strong up-leg retraces into the 50%-61.8% zone and holds. Entry in the zone
+  with volume confirming the reversal; hard invalidation below the 78.6% level
+  gives a tight stop and mechanically strong R:R back to the swing high.
+fits_regime: [bull, ranging]
+required_signals: [fib_golden_zone, ema_aligned]
+min_score: 2
+instrument_bias: calls
+notes: >
+  The agent adds the 'fib_golden_zone' signal only when analyze() reports
+  in_zone. Zone entry alone is never sufficient: volume must confirm the
+  reversal at the zone (>=1.5x avg on the turn), regime scale > 0, catalyst
+  verified. Retrace beyond 78.6% = setup dead, no long. Do not buy 'discounts'
+  in a broken trend.

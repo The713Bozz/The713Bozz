@@ -104,7 +104,8 @@ These actions happen automatically — no user prompt needed:
 - `src/signals/` — Technical signal generators (momentum, volume, RSI, EMA), regime, catalyst, and `research.py` (verified-catalyst intelligence layer)
 - `src/risk/` — Position sizing, drawdown tracking, circuit breaker
 - `src/strategy/` — Trade decision logic, watchlist, `strategy_library.py` (playbook matcher) and `dashboard.py` (Decision Dashboard builder)
-- `config/strategies/*.yaml` — Named momentum playbooks (volume_breakout, bull_trend, dragon_head, ma_golden_cross, shrink_pullback, hot_theme)
+- `config/strategies/*.yaml` — Named momentum playbooks (volume_breakout, bull_trend, dragon_head, ma_golden_cross, shrink_pullback, hot_theme, fib_golden_zone)
+- `src/signals/fibonacci.py` — Golden-zone pullback toolkit (`--fib` CLI): anti-chase entry timing, 78.6% invalidation, stop/target/R:R
 - `src/main.py` — Orchestration loop (`--dashboard` is the canonical pre-trade report)
 - `config/challenge.json` — Live challenge state (account value, trade count, phase)
 - `logs/trades.jsonl` — Immutable trade log

@@ -386,6 +386,30 @@ def cmd_dashboard(args, account_value: float) -> None:
     print(format_dashboard(d))
 
 
+def cmd_fib(args) -> None:
+    """Fibonacci golden-zone analysis of an up-leg. Agent supplies the swing
+    (from live bars or detect_swing) + current price; this prints levels, zone
+    status, and battle-plan numbers. When status is in_zone, add the
+    'fib_golden_zone' signal to --signals for the dashboard/playbook matcher."""
+    from src.signals.fibonacci import analyze, format_fib
+
+    missing = []
+    if not args.symbol:
+        missing.append("--symbol")
+    if args.swing_low is None:
+        missing.append("--swing-low")
+    if args.swing_high is None:
+        missing.append("--swing-high")
+    if args.price is None:
+        missing.append("--price")
+    if missing:
+        print(f"[ERROR] --fib requires: {', '.join(missing)}")
+        return
+
+    result = analyze(args.symbol, args.swing_low, args.swing_high, args.price)
+    print(format_fib(result))
+
+
 def cmd_session_start(account_value):
     import datetime
     try:
@@ -467,6 +491,11 @@ def main():
     parser.add_argument("--sector-context", type=str, default="", help="Breadth read (e.g. 'sector-wide RS >95')")
     parser.add_argument("--contradiction", type=str, default="", help="Semicolon-separated disconfirming evidence")
 
+    # --fib arguments (Fibonacci golden-zone pullback analysis)
+    parser.add_argument("--fib", action="store_true", help="Analyze an up-leg retracement: levels, golden-zone status, stop/target/RR")
+    parser.add_argument("--swing-low", type=float, help="Up-leg swing low price")
+    parser.add_argument("--swing-high", type=float, help="Up-leg swing high price")
+
     # --log-fill arguments
     parser.add_argument("--log-fill", action="store_true", help="Log a confirmed fill to trades.jsonl")
     parser.add_argument("--order-id", type=str, help="Robinhood order ID")
@@ -508,6 +537,8 @@ def main():
         cmd_build_order(args)
     elif args.dashboard:
         cmd_dashboard(args, account_value)
+    elif args.fib:
+        cmd_fib(args)
     elif args.log_fill:
         cmd_log_fill(args)
     elif args.record_result:
